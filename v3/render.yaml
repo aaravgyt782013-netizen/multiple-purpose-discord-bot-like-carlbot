@@ -1,0 +1,20 @@
+services:
+  - type: worker
+    name: aarav-all-in-one-bot
+    runtime: node
+    rootDir: v3
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: DEV_GUILD_ID
+        sync: false
+      - key: PREFIX
+        value: "."
+      - key: OWNER_IDS
+        sync: false
+      - key: DB_FILE
+        value: "./data/bot.sqlite"
