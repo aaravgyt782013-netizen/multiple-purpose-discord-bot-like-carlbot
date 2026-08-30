@@ -1,9 +1,9 @@
 require('dotenv').config();
 const http = require('http');
 
-// Render Web Services require a listening HTTP port. Start it BEFORE
-// Discord command registration so a slow global registration never causes
-// Render to report "No open ports detected".
+// Bind Render's HTTP port before loading the Discord bot. index.js loads
+// several modules/database code synchronously, so requiring it first can
+// delay Render's port detection.
 const port = Number(process.env.PORT || 10000);
 const server = http.createServer((req, res) => {
   if (req.url === '/health') {
@@ -16,19 +16,26 @@ const server = http.createServer((req, res) => {
 
 server.listen(port, '0.0.0.0', () => {
   console.log(`🌐 Render health server listening on ${port}`);
-});
 
-// Start the Discord bot immediately. Slash registration is intentionally
-// separate and may take longer without blocking Render's port detection.
-require('./index.js');
+  // Give the HTTP listener a turn in the event loop before loading the bot.
+  // This guarantees Render can detect the port even if bot modules are slow.
+  setTimeout(() => {
+    try {
+      require('./index.js');
+    } catch (err) {
+      console.error('❌ Discord bot startup error:', err);
+    }
+  }, 0);
 
-// Register commands in parallel after the bot process has started.
-setImmediate(() => {
-  try {
-    require('./register.js');
-  } catch (err) {
-    console.error('❌ Slash registration startup error:', err);
-  }
+  // Registration uses Discord REST directly and does not need to wait for
+  // client.login(). Run it after the bot import has been scheduled.
+  setTimeout(() => {
+    try {
+      require('./register.js');
+    } catch (err) {
+      console.error('❌ Slash registration startup error:', err);
+    }
+  }, 1000);
 });
 
 process.on('SIGTERM', () => server.close(() => process.exit(0)));
