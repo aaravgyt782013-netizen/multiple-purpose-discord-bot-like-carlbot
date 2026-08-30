@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: aarav-all-in-one-discord-bot
+    runtime: node
+    rootDir: v4
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: DEV_GUILD_ID
+        sync: false
+      - key: PREFIX
+        value: .
+      - key: DB_FILE
+        value: /var/data/data.sqlite
+    disk:
+      name: bot-data
+      mountPath: /var/data
+      sizeGB: 1
