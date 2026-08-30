@@ -1,0 +1,1 @@
+{"name":"aarav-all-in-one","version":"4.0.0","private":true,"type":"commonjs","scripts":{"start":"node src/index.js","dev":"node --watch src/index.js"},"engines":{"node":">=20"},"dependencies":{"better-sqlite3":"^11.8.1","discord.js":"^14.24.2","dotenv":"^16.4.7"}}
