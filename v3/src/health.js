@@ -1,0 +1,1 @@
+const http=require('http');function start(){const port=Number(process.env.PORT||10000);http.createServer((req,res)=>{if(req.url==='/health'||req.url==='/'){res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify({ok:true,service:'aarav-all-in-one'}))}res.writeHead(404);res.end()}).listen(port,'0.0.0.0')}module.exports={start};
