@@ -2,7 +2,7 @@ services:
   - type: web
     name: aarav-all-in-one-discord-bot
     runtime: node
-    rootDir: v4
+    rootDir: v3
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /health
@@ -16,7 +16,7 @@ services:
       - key: PREFIX
         value: .
       - key: DB_FILE
-        value: /var/data/data.sqlite
+        value: /var/data/bot.sqlite
     disk:
       name: bot-data
       mountPath: /var/data
