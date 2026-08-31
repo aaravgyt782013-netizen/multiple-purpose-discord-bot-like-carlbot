@@ -60,7 +60,7 @@ const clientHelp = () => {
     .setTimestamp()
     .setFooter({ text: 'Client commands • aliases included' });
 
-  chunks.slice(0, 5).forEach((chunk, index) => {
+  chunks.forEach((chunk, index) => {
     embed.addFields({ name: `Commands ${index * 45 + 1}–${Math.min((index + 1) * 45, list.length)}`, value: chunk || 'None' });
   });
   return { embeds: [embed] };
@@ -68,7 +68,7 @@ const clientHelp = () => {
 
 const originalCommandListEmbed = commands.commandListEmbed;
 commands.commandListEmbed = function (category = 'home') {
-  if (category === 'client') return clientHelp().embeds[0];
+  if (category === 'home' || category === 'client') return clientHelp().embeds[0];
   return originalCommandListEmbed(category);
 };
 
