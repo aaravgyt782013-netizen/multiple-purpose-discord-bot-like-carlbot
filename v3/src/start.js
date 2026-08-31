@@ -18,8 +18,7 @@ Client.prototype.login = function (...args) {
 
 // index.js already performs the authoritative global PUT. Discord global
 // commands can take time to propagate, so mirror that same command body to
-// every guild the bot is actually connected to. This makes commands available
-// immediately in installed servers without requiring a manual register step.
+// every guild the bot is actually connected to.
 const originalPut = REST.prototype.put;
 REST.prototype.put = async function (fullRoute, options) {
   const result = await originalPut.call(this, fullRoute, options);
@@ -48,17 +47,15 @@ REST.prototype.put = async function (fullRoute, options) {
   return result;
 };
 
-// !help should show the complete client-command catalog instead of only one
-// slash-command category. Keep the normal category renderer available for
-// other callers by using a separate client-help renderer.
+// !help should show the complete client-command catalog.
 const clientHelp = () => {
-  const list = commands.prefixCommands.map(name => `\`!${name}\``);
+  const list = commands.prefixCommands.map(name => `!${name}`);
   const chunks = [];
   for (let i = 0; i < list.length; i += 45) chunks.push(list.slice(i, i + 45).join(' '));
 
   const embed = new EmbedBuilder()
     .setTitle('🤖 Aarav All-In-One • Client Commands')
-    .setDescription(`**${commands.prefixCommands.length} client commands**\nPrefix: \`!\`\n\nUse \\`!help\\` anytime to open this list.`)
+    .setDescription(`**${commands.prefixCommands.length} client commands**\nPrefix: !\n\nUse !help anytime to open this list.`)
     .setColor(0x5865f2)
     .setTimestamp()
     .setFooter({ text: 'Client commands • aliases included' });
