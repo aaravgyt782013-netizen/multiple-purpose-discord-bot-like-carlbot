@@ -1,7 +1,7 @@
 {
   "name": "aarav-all-in-one-discord-bot",
-  "version": "3.0.3",
-  "description": "All-in-one Discord bot with moderation, automod, utility, welcome, levels, economy, giveaways, tickets, reaction roles and slash commands.",
+  "version": "3.0.4",
+  "description": "All-in-one Discord bot with moderation, automod, utility, welcome, levels, economy, giveaways, tickets, reaction roles, slash commands and voice music.",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/start.js",
@@ -9,11 +9,11 @@
     "register": "node src/register.js",
     "dev": "node --watch src/index.js"
   },
-  "engines": {
-    "node": "22.x"
-  },
+  "engines": { "node": "22.x" },
   "dependencies": {
     "discord.js": "^14.21.0",
+    "@discordjs/voice": "^0.19.0",
+    "play-dl": "^1.9.7",
     "better-sqlite3": "^11.10.0",
     "dotenv": "^17.2.1",
     "ms": "^2.1.3"
