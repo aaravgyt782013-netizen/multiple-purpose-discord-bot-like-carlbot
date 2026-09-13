@@ -27,15 +27,14 @@ module.exports=function loadFeaturePack(bot){
  attachMusic(bot.client,'.');
  attachCounterAutosetup(bot.client,'.');
  attachGlobalEconomy(bot.client,'.');
- attachHelpFinal(bot.client,'.');
  attachCommunitySuite(bot.client,'.');
  attachManagementSuite(bot.client,'.');
- // Each feature module wraps the previous messageCreate handler. Keep only the outermost
- // registered listener; its closure still contains the complete internal command chain.
+ // Install the ordered help handler LAST so .help cannot be intercepted by an older wrapper.
+ attachHelpFinal(bot.client,'.');
  const listeners=bot.client.listeners('messageCreate');
  if(listeners.length>1){
    const outer=listeners[listeners.length-1];
    for(const listener of listeners)if(listener!==outer)bot.client.removeListener('messageCreate',listener);
  }
- console.log(`[FEATURES] Full command stack loaded | prefix: . | management suite enabled | message handlers: ${bot.client.listenerCount('messageCreate')}`);
+ console.log(`[FEATURES] Full command stack loaded | prefix: . | ordered help handler last | message handlers: ${bot.client.listenerCount('messageCreate')}`);
 };
