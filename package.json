@@ -1,7 +1,7 @@
 {
   "name": "aarav-all-in-one-discord-bot",
-  "version": "2.1.1",
-  "description": "LightCore all-in-one Discord bot with prefix-first commands and interactive help.",
+  "version": "3.0.0",
+  "description": "LightCore original all-in-one Discord bot inspired by the feature sets of popular moderation, utility, leveling, ticket, logging and community bots.",
   "main": "src/start.js",
   "scripts": {
     "start": "node src/start.js"
