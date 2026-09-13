@@ -5,6 +5,7 @@ const attachMusic=require('./music.js');
 const attachServerFeatures=require('./server-features.js');
 const attachNotifier=require('./notifier.js');
 const attachUltimate=require('./ultimate-features.js');
+const attachHelpFinal=require('./help-final.js');
 module.exports=function loadFeaturePack(bot){
  if(!bot?.client)throw new Error('LightCore client is unavailable.');
  const dataDir=path.join(process.cwd(),'data');const file=path.join(dataDir,'database.json');
@@ -18,5 +19,6 @@ module.exports=function loadFeaturePack(bot){
  attachServerFeatures(bot.client,'.');
  attachNotifier(bot.client,'.');
  attachUltimate(bot.client,'.');
- console.log('[FEATURES] Music + Help + AFK + Announce + Stars + Counters + Notifier + Giveaways + Tickets + Permissions + Invite Tracking + Fun loaded | prefix: .');
+ attachHelpFinal(bot.client,'.');
+ console.log('[FEATURES] Full command stack loaded | prefix: .');
 };
