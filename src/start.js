@@ -18,27 +18,25 @@ if (!process.env.DISCORD_TOKEN) {
 } else {
   console.log(`[START] Loading LightCore with Render prefix: ${process.env.PREFIX || '!'}`);
 
-  // Older versions of the help menu passed the first UTF-16 code unit of
-  // an emoji to Discord. Some emojis are surrogate pairs, which made .help
-  // fail at runtime. Normalize select-menu emojis before the bot starts.
+  // Compatibility fix for the interactive help menu. The previous code used
+  // label[0] for emojis; multi-code-unit emojis could become invalid Discord
+  // emoji data and make the whole .help command fail. Normalize recursively.
   try {
     const { StringSelectMenuBuilder } = require('discord.js');
     const originalAddOptions = StringSelectMenuBuilder.prototype.addOptions;
+    const fixOptions = value => {
+      if (Array.isArray(value)) return value.map(fixOptions);
+      if (!value || typeof value !== 'object' || !value.emoji) return value;
+      return { ...value, emoji: typeof value.emoji === 'string' ? Array.from(value.emoji)[0] : value.emoji };
+    };
     StringSelectMenuBuilder.prototype.addOptions = function (...options) {
-      const fixed = options.map(option => {
-        if (!option || typeof option !== 'object' || !option.emoji) return option;
-        const copy = { ...option, emoji: typeof option.emoji === 'string' ? Array.from(option.emoji)[0] : option.emoji };
-        return copy;
-      });
-      return originalAddOptions.call(this, ...fixed);
+      return originalAddOptions.call(this, ...fixOptions(options));
     };
   } catch (error) {
     console.warn('[HELP PATCH] Could not install emoji compatibility patch:', error?.message || error);
   }
 
-  // This build is prefix-first. Remove stale global slash commands left by
-  // older deployments so Discord does not show commands that are no longer
-  // handled by the running client.
+  // Prefix-first build: remove stale global slash commands from older builds.
   if (process.env.CLIENT_ID) {
     try {
       const { REST, Routes } = require('discord.js');
