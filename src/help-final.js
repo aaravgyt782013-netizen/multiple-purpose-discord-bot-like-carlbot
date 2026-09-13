@@ -1,4 +1,4 @@
-const {EmbedBuilder,ActionRowBuilder,StringSelectMenuBuilder,ButtonBuilder,ButtonStyle}=require('discord.js');
+const {EmbedBuilder,ActionRowBuilder,StringSelectMenuBuilder,ButtonBuilder,ButtonStyle,REST,Routes,ApplicationCommandOptionType}=require('discord.js');
 module.exports=function(client,prefix='.'){
  const P=prefix||'.';
  const groups={
@@ -60,9 +60,27 @@ module.exports=function(client,prefix='.'){
  }
  function help(cat='home',page=0){return cat==='home'?home():category(cat,page);}
  const marker=Symbol.for('lightcore.helpFinalInstalled');if(client[marker])return;client[marker]=true;
+ client[Symbol.for('lightcore.helpRenderer')]=help;
  const old=client.listeners('messageCreate').at(-1);
  if(old){client.removeListener('messageCreate',old);client.on('messageCreate',async m=>{try{if(m.author.bot||!m.guild)return;if(!m.content.startsWith(P))return old(m);const a=m.content.slice(P.length).trim().split(/\s+/),c=(a.shift()||'').toLowerCase();if(c==='help'||c==='h'){await m.reply(help((a[0]||'home').toLowerCase(),Number(a[1])||0));return}return old(m)}catch(e){console.error('[HELP ORDERED]',e)}})}
+ client.once('ready',async()=>{
+  try{
+   if(!process.env.DISCORD_TOKEN||!client.user?.id)return;
+   const rest=new REST({version:'10'}).setToken(process.env.DISCORD_TOKEN);
+   const command={name:'help',description:'Open the LightCore Help Center',options:[
+    {name:'category',description:'Choose a command category',type:ApplicationCommandOptionType.String,required:false,choices:allCats.slice(0,25).map(k=>({name:cleanName(k).slice(0,100),value:k}))},
+    {name:'page',description:'Page number for the selected category',type:ApplicationCommandOptionType.Integer,required:false,min_value:1,max_value:50}
+   ]};
+   await rest.put(Routes.applicationCommands(client.user.id),{body:[command]});
+   console.log('[SLASH] Registered /help using the same Help Center as .help');
+  }catch(e){console.error('[HELP SLASH REGISTER]',e?.stack||e)}
+ });
  client.on('interactionCreate',async i=>{try{
+  if(i.isChatInputCommand()&&i.commandName==='help'){
+   const cat=i.options.getString('category')||'home';
+   const page=Math.max(0,(i.options.getInteger('page')||1)-1);
+   return i.reply(help(cat,page));
+  }
   if(i.isStringSelectMenu()&&i.customId==='lc_help_category')return i.update(help(i.values[0],0));
   if(i.isButton()&&i.customId==='lc_help_home')return i.update(help('home',0));
   if(i.isButton()&&(i.customId.startsWith('lc_help_prev:')||i.customId.startsWith('lc_help_next:'))){const [action,cat,raw]=i.customId.split(':');const p=Number(raw)||0;return i.update(help(cat,action==='lc_help_prev'?p-1:p+1));}
