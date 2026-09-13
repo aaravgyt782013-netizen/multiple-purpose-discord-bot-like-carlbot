@@ -1,10 +1,11 @@
 const fs=require('fs');
 const path=require('path');
 const attach=require('./feature-pack.js');
-const attachMusic=require('./music.js');
 const attachServerFeatures=require('./server-features.js');
 const attachNotifier=require('./notifier.js');
 const attachUltimate=require('./ultimate-features.js');
+const attachFinalSuite=require('./final-suite.js');
+const attachMusic=require('./music.js');
 const attachHelpFinal=require('./help-final.js');
 module.exports=function loadFeaturePack(bot){
  if(!bot?.client)throw new Error('LightCore client is unavailable.');
@@ -15,10 +16,11 @@ module.exports=function loadFeaturePack(bot){
  const fresh=()=>({featurePack:{ticketCategory:null,ticketStaffRole:null,rr:{},temp:{category:null,creator:null},welcome:null,goodbye:null,filters:[],autorole:null,raid:{enabled:false},nuke:{enabled:false}},custom:{},reminders:[]});
  const gd=id=>{const d=db[id]||(db[id]=fresh());const f=fresh();for(const k of Object.keys(f))if(d[k]===undefined)d[k]=f[k];return d;};
  attach(bot.client,db,save,gd,'.');
- attachMusic(bot.client,'.');
  attachServerFeatures(bot.client,'.');
  attachNotifier(bot.client,'.');
  attachUltimate(bot.client,'.');
+ attachFinalSuite(bot.client,'.');
+ attachMusic(bot.client,'.');
  attachHelpFinal(bot.client,'.');
  console.log('[FEATURES] Full command stack loaded | prefix: .');
 };
