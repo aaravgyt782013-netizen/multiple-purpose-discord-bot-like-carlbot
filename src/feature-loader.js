@@ -2,6 +2,7 @@ const fs=require('fs');
 const path=require('path');
 const attach=require('./feature-pack.js');
 const attachMusic=require('./music.js');
+const attachEnhancements=require('./enhancements.js');
 
 module.exports=function loadFeaturePack(bot){
   if(!bot?.client) throw new Error('LightCore client is unavailable.');
@@ -14,6 +15,11 @@ module.exports=function loadFeaturePack(bot){
   const save=()=>fs.writeFileSync(file,JSON.stringify(db,null,2));
   const fresh=()=>({featurePack:{ticketCategory:null,ticketStaffRole:null,rr:{},temp:{category:null,creator:null},welcome:null,goodbye:null,filters:[],autorole:null,raid:{enabled:false},nuke:{enabled:false}},custom:{},reminders:[]});
   const gd=id=>{const d=db[id]||(db[id]=fresh());const f=fresh();for(const k of Object.keys(f))if(d[k]===undefined)d[k]=f[k];return d;};
+
+  // Load order: core -> feature pack -> music -> final help/AFK/logging router.
   attach(bot.client,db,save,gd,'.');
   attachMusic(bot.client,'.');
+  attachEnhancements(bot.client,'.');
+
+  console.log('[FEATURES] Feature pack + Music + Help/AFK/Logging enhancements loaded | prefix: .');
 };
