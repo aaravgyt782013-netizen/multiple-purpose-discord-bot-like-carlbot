@@ -2,24 +2,19 @@ const fs=require('fs');
 const path=require('path');
 const attach=require('./feature-pack.js');
 const attachMusic=require('./music.js');
-const attachEnhancements=require('./enhancements.js');
-
+const attachServerFeatures=require('./server-features.js');
+const attachNotifier=require('./notifier.js');
 module.exports=function loadFeaturePack(bot){
-  if(!bot?.client) throw new Error('LightCore client is unavailable.');
-  const dataDir=path.join(process.cwd(),'data');
-  const file=path.join(dataDir,'database.json');
-  if(!fs.existsSync(dataDir))fs.mkdirSync(dataDir,{recursive:true});
-  if(!fs.existsSync(file))fs.writeFileSync(file,'{}');
-  let db={};
-  try{db=JSON.parse(fs.readFileSync(file,'utf8')||'{}');}catch{db={};}
-  const save=()=>fs.writeFileSync(file,JSON.stringify(db,null,2));
-  const fresh=()=>({featurePack:{ticketCategory:null,ticketStaffRole:null,rr:{},temp:{category:null,creator:null},welcome:null,goodbye:null,filters:[],autorole:null,raid:{enabled:false},nuke:{enabled:false}},custom:{},reminders:[]});
-  const gd=id=>{const d=db[id]||(db[id]=fresh());const f=fresh();for(const k of Object.keys(f))if(d[k]===undefined)d[k]=f[k];return d;};
-
-  // Load order: core -> feature pack -> music -> final help/AFK/logging router.
-  attach(bot.client,db,save,gd,'.');
-  attachMusic(bot.client,'.');
-  attachEnhancements(bot.client,'.');
-
-  console.log('[FEATURES] Feature pack + Music + Help/AFK/Logging enhancements loaded | prefix: .');
+ if(!bot?.client)throw new Error('LightCore client is unavailable.');
+ const dataDir=path.join(process.cwd(),'data');const file=path.join(dataDir,'database.json');
+ if(!fs.existsSync(dataDir))fs.mkdirSync(dataDir,{recursive:true});if(!fs.existsSync(file))fs.writeFileSync(file,'{}');
+ let db={};try{db=JSON.parse(fs.readFileSync(file,'utf8')||'{}')}catch{db={}};
+ const save=()=>fs.writeFileSync(file,JSON.stringify(db,null,2));
+ const fresh=()=>({featurePack:{ticketCategory:null,ticketStaffRole:null,rr:{},temp:{category:null,creator:null},welcome:null,goodbye:null,filters:[],autorole:null,raid:{enabled:false},nuke:{enabled:false}},custom:{},reminders:[]});
+ const gd=id=>{const d=db[id]||(db[id]=fresh());const f=fresh();for(const k of Object.keys(f))if(d[k]===undefined)d[k]=f[k];return d;};
+ attach(bot.client,db,save,gd,'.');
+ attachMusic(bot.client,'.');
+ attachServerFeatures(bot.client,'.');
+ attachNotifier(bot.client,'.');
+ console.log('[FEATURES] Music + Help + AFK + Announce + Stars + Counters + Logging + Notifier loaded | prefix: .');
 };
