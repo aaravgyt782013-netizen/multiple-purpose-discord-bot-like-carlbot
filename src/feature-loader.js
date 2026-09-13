@@ -6,10 +6,11 @@ const attachNotifier=require('./notifier.js');
 const attachUltimate=require('./ultimate-features.js');
 const attachFinalSuite=require('./final-suite.js');
 const attachMusic=require('./music.js');
-const attachHelpFinal=require('./help-final.js');
 const attachCounterAutosetup=require('./counter-autosetup.js');
 const attachGlobalEconomy=require('./global-economy.js');
+const attachHelpFinal=require('./help-final.js');
 const attachCommunitySuite=require('./community-suite.js');
+const attachManagementSuite=require('./management-suite.js');
 module.exports=function loadFeaturePack(bot){
  if(!bot?.client)throw new Error('LightCore client is unavailable.');
  const dataDir=path.join(process.cwd(),'data');const file=path.join(dataDir,'database.json');
@@ -28,5 +29,6 @@ module.exports=function loadFeaturePack(bot){
  attachGlobalEconomy(bot.client,'.');
  attachHelpFinal(bot.client,'.');
  attachCommunitySuite(bot.client,'.');
- console.log('[FEATURES] Full command stack loaded | prefix: . | global economy + community suite enabled');
+ attachManagementSuite(bot.client,'.');
+ console.log('[FEATURES] Full command stack loaded | prefix: . | management suite enabled');
 };
