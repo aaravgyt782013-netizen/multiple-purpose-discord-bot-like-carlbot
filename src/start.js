@@ -21,8 +21,7 @@ if (!process.env.DISCORD_TOKEN) {
   console.log('[START] Loading LightCore All-in-One engine | prefix: .');
   const bot = require('./ultra.js');
   require('./feature-loader.js')(bot);
-  // Replace the old slash-command registry with the single unified /commands command.
-  require('./commands-slash.js')(bot.client);
+  require('./live-stats.js')(bot.client);
 }
 
 setInterval(() => console.log('[HEALTH] LightCore process is alive.'), 60000).unref();
