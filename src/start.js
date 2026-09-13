@@ -20,9 +20,7 @@ if (!process.env.DISCORD_TOKEN) {
 } else {
   console.log('[START] Loading LightCore All-in-One engine | prefix: .');
   const bot = require('./ultra.js');
-  if (bot && bot.client && typeof bot.attachFeaturePack === 'function') {
-    bot.attachFeaturePack(bot.client, bot.db, bot.save, bot.gd, '.');
-  }
+  require('./feature-loader.js')(bot);
   if (bot && bot.client && bot.registerSlash) {
     bot.client.once('ready', async () => {
       try { await bot.registerSlash(); }
