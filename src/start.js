@@ -18,6 +18,10 @@ if (!process.env.DISCORD_TOKEN) {
 } else {
   console.log(`[START] Loading unified LightCore engine with Render prefix: ${process.env.PREFIX || '!'}`);
   const bot = require('./lightcore.js');
+  const advancedLogging = require('./advanced-logging.js');
+  advancedLogging.setup(bot.client);
+  console.log('[MODULE] Advanced logging + logging controls loaded.');
+
   bot.client.once('ready', async () => {
     try {
       await bot.registerSlash();
