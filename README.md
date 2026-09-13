@@ -1,34 +1,43 @@
 # All-in-One Discord Bot
 
-A single Discord bot combining the core style of Carl-bot/R.O.T.I.-type utility bots.
+A large, original all-in-one Discord bot inspired by the feature categories of popular server-management bots.
 
-## Included
-- Moderation: kick, ban, unban, timeout, warn, warnings, purge, lock, unlock, slowmode, nickname
-- Auto moderation: links, Discord invites, caps and basic spam protection
-- Logging: member joins/leaves, deleted messages and moderation actions
-- Welcome system with `{user}` and `{server}` placeholders
-- Autorole
-- Server lockdown/unlockdown
-- Private support tickets
-- Utility: server/user/avatar/role/channel info, invite, stats
-- Fun: 8ball, coinflip, dice, choose, poll, say and announce
-- Per-server command enable/disable settings
-- Persistent JSON configuration in `data/guilds.json`
-- Slash-command based, Discord.js v14
+## Feature modules
+- 🛡️ **Moderation:** kick, ban, unban, timeout, warn, warning history, purge, lock/unlock, slowmode, nickname, lockdown
+- 📜 **Server logging:** joins, leaves, deleted/edited messages, channels, roles, bans and moderation actions
+- 📈 **Leveling:** XP from chat, level-up messages, leaderboard and admin XP control
+- 💰 **Economy:** balance, daily, work, bank deposit/withdraw, pay and rob
+- 🎨 **Embeds:** custom title/description embeds, announcements and polls
+- 🎫 **Tickets:** private ticket creation, ticket category setup and close button
+- 🛠️ **Utility:** server/user/avatar/role/channel information, invite and bot stats
+- 🎉 **Fun:** 8ball, coinflip, dice, choose and polls
+- 👋 **Welcome:** configurable channel/message with `{user}` and `{server}` placeholders
+- 🤖 **Autorole:** automatically assign a configured role to new members
+- 📝 **Applications:** configurable review channel and application settings
+- 🎵 **Music:** play URL, queue, skip, stop and leave voice
+- 🤖 **AutoMod:** invite, link, caps and basic spam protection
+- ⚙️ **Server settings:** per-server configuration and command enable/disable
+- 💾 **Persistence:** local JSON database that is created automatically
 
 ## Setup
 
-1. Create a Discord application and bot at the Discord Developer Portal.
-2. Put `DISCORD_TOKEN`, `CLIENT_ID`, and optionally `GUILD_ID` in your hosting environment.
-3. Install dependencies with `npm install`.
-4. Start with `npm start`.
+1. Create a Discord application and bot in the Discord Developer Portal.
+2. Set `DISCORD_TOKEN` and `CLIENT_ID` in your host environment.
+3. Optionally set `GUILD_ID` for instant command registration in a test server.
+4. Run `npm install` and then `npm start`.
 
-For development, set `GUILD_ID` to a test server so slash commands register there immediately. Without it, commands are registered globally and can take time to propagate.
+## Environment variables
 
-## Required bot permissions/intents
+```env
+DISCORD_TOKEN=your_bot_token
+CLIENT_ID=your_application_id
+GUILD_ID=optional_test_server_id
+PREFIX=!
+OWNER_ID=your_discord_user_id
+```
 
-Enable the **Message Content Intent** and **Server Members Intent** in the Developer Portal. Invite the bot with the permissions needed for the moderation features you want to use.
+## Required intents
 
-## Notes
+Enable **Message Content**, **Server Members**, and **Voice State** intents in the Discord Developer Portal. Give the bot the permissions required by the features you enable.
 
-This is the foundation for a larger all-in-one bot. Features are intentionally implemented without copying proprietary source code from Carl-bot, R.O.T.I. or other bots.
+> This project uses its own implementation and does not copy proprietary source code from Carl-bot, R.O.T.I. or other bots.
