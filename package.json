@@ -1,10 +1,10 @@
 {
   "name": "aarav-all-in-one-discord-bot",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "LightCore all-in-one Discord bot with prefix-first commands and interactive help.",
   "main": "src/start.js",
   "scripts": {
-    "start": "node -r ./src/prefix.js src/start.js"
+    "start": "node src/start.js"
   },
   "engines": {
     "node": ">=20"
