@@ -30,5 +30,12 @@ module.exports=function loadFeaturePack(bot){
  attachHelpFinal(bot.client,'.');
  attachCommunitySuite(bot.client,'.');
  attachManagementSuite(bot.client,'.');
- console.log('[FEATURES] Full command stack loaded | prefix: . | management suite enabled');
+ // Each feature module wraps the previous messageCreate handler. Keep only the outermost
+ // registered listener; its closure still contains the complete internal command chain.
+ const listeners=bot.client.listeners('messageCreate');
+ if(listeners.length>1){
+   const outer=listeners[listeners.length-1];
+   for(const listener of listeners)if(listener!==outer)bot.client.removeListener('messageCreate',listener);
+ }
+ console.log(`[FEATURES] Full command stack loaded | prefix: . | management suite enabled | message handlers: ${bot.client.listenerCount('messageCreate')}`);
 };
