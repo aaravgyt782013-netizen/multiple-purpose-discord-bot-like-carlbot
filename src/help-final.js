@@ -1,45 +1,58 @@
-const {EmbedBuilder,ActionRowBuilder,StringSelectMenuBuilder,ButtonBuilder,ButtonStyle,REST,Routes,ApplicationCommandOptionType}=require('discord.js');
+const {EmbedBuilder,ActionRowBuilder,StringSelectMenuBuilder,ButtonBuilder,ButtonStyle,ApplicationCommandOptionType}=require('discord.js');
+
 module.exports=function(client,prefix='.'){
  const P=prefix||'.';
  const groups={
-  home:['help','ping','uptime','botinfo','invite','support','serverinfo','membercount','userinfo','avatar','roleinfo','channelinfo','servericon'],
-  moderation:['kick','ban','unban','softban','timeout','untimeout','warn','unwarn','warnings','clearwarnings','purge','lock','unlock','slowmode','nick','lockdown','unlockdown','massrole'],
-  security:['automod','antiraid','antinuke','security','filter','filter-add','filter-remove','verify','honeypot'],
-  logging:['logsetup','setlog','logdisable','logsettings','logevents','logtest','logreset'],
-  leveling:['level','rank','xp','leaderboard','setxp','leveling','reward','rewards'],
-  economy:['balance','bal','daily','work','beg','deposit','withdraw','pay','richlist','luck','eco'],
-  music:['play','p','join','connect','leave','disconnect','pause','resume','unpause','skip','next','stop','queue','q','nowplaying','np','current','volume','vol','loop','repeat','shuffle','remove','move','clearqueue','musichelp'],
-  tickets:['ticket','ticket setup','ticket panel','ticket categories','ticket addcategory','ticket editcategory','ticket delcategory','ticket editpanel title','ticket editpanel description','ticket editpanel color','ticket editpanel button','ticket open','ticket close','ticket claim','ticket unclaim','ticket add','ticket remove','ticket rename','ticket logs','ticket transcripts','application setup','application panel','application edit title','application edit description','application edit color','application edit button','application questions','application question add','application question remove','application question edit','apply'],
+  home:['help','ping','uptime','botinfo','invite','support','serverinfo','membercount','userinfo','avatar','roleinfo','channelinfo','servericon','permissions','config','prefix','enable','disable'],
+  moderation:['ban','clearwarnings','kick','lock','lockdown','massrole','nick','purge','slowmode','softban','timeout','unban','unlock','unlockdown','unwarn','untimeout','warn','warnings'],
+  security:['antiraid','antinuke','automod','filter','filter-add','filter-remove','honeypot','security','verify'],
+  logging:['logdisable','logevents','logreset','logsettings','logsetup','logtest','setlog'],
+  leveling:['leaderboard','level','leveling','levelrole','reward','rewards','rank','setxp','xp'],
+  economy:['balance','bal','beg','daily','deposit','eco','economy','luck','pay','richlist','withdraw','work'],
+  music:['clearqueue','connect','current','disconnect','join','leave','loop','move','musichelp','next','nowplaying','np','pause','p','play','q','queue','remove','repeat','resume','shuffle','skip','stop','unpause','vol','volume'],
+  tickets:['application edit button','application edit color','application edit description','application edit title','application panel','application question add','application question edit','application question remove','application questions','application setup','apply','ticket','ticket add','ticket addcategory','ticket categories','ticket claim','ticket close','ticket delcategory','ticket editcategory','ticket editpanel button','ticket editpanel color','ticket editpanel description','ticket editpanel title','ticket logs','ticket open','ticket panel','ticket remove','ticket rename','ticket setup','ticket transcripts','ticket unclaim'],
   giveaways:['giveaway','gcreate'],
-  fun:['8ball','eightball','coinflip','roll','choose','ship','rate','cat','dog','joke','reverse'],
-  counters:['counter','counter autosetup','counter setup','counter remove','counter update'],
-  memberstats:['stats','stat','stats @user','serverstats','members','messages','messages @user','memberstats','membersstats'],
-  notifications:['notifier add','notifier list','notifier remove','notifier enable','notifier disable','notifier test'],
-  invites:['invites','invites-leaderboard','inviteconfig'],
-  announcements:['announce','say','embed','embedhelp','poll','announce-embed'],
-  roles:['role','role give','role remove','role duplicate','deleterole','autorole','reactionrole','levelrole','roleall'],
-  channels:['channel create','channel duplicate','category delete'],
-  welcome:['welcome','setwelcome','setwelcome-message','goodbye'],
-  autoresponder:['autoresponder','ar'],
-  custom:['customcommand','cc','cc-delete','cc-list'],
+  fun:['8ball','cat','choose','coinflip','dog','eightball','joke','rate','reverse','roll','ship'],
+  counters:['counter','counter autosetup','counter remove','counter setup','counter update'],
+  memberstats:['memberstats','members','membersstats','messages','messages @user','serverstats','stat','stats','stats @user'],
+  notifications:['notifier add','notifier disable','notifier enable','notifier list','notifier remove','notifier test'],
+  invites:['inviteconfig','invites','invites-leaderboard'],
+  announcements:['announce','announce-embed','embed','embedhelp','poll','say'],
+  roles:['autorole','deleterole','levelrole','reactionrole','role','role duplicate','role give','role remove','roleall'],
+  channels:['category delete','channel create','channel duplicate'],
+  welcome:['goodbye','setwelcome','setwelcome-message','welcome'],
+  autoresponder:['ar','autoresponder'],
+  custom:['cc','cc-delete','cc-list','customcommand'],
   afk:['afk'],
-  stars:['stars','starleaderboard','starconfig','starboard'],
+  stars:['starboard','starconfig','starleaderboard','stars'],
   voice:['tempvoice','voice'],
-  configuration:['permissions','perm','emoji','emoji-list','config','prefix','enable','disable']
+  configuration:['config','disable','emoji','emoji-list','enable','permissions','perm','prefix'],
+  utility:['channel','channelinfo','membercount','roleinfo','servericon','serverinfo','userinfo','userinfo-all'],
+  reminders:['remind','reminders']
  };
- const names={home:'🏠 Home',moderation:'🛡️ Moderation',security:'🔐 Security',logging:'📋 Logging',leveling:'📈 Leveling',economy:'💰 Economy',music:'🎧 Music',tickets:'🎫 Tickets & Applications',giveaways:'🎉 Giveaways',fun:'🎭 Fun',counters:'📊 Counters',memberstats:'📈 Member & User Stats',notifications:'🔔 Notifications',invites:'🔗 Invites',announcements:'📢 Announcements',roles:'🎭 Roles',channels:'📁 Channels',welcome:'👋 Welcome',autoresponder:'🤖 Auto Responder',custom:'⚙️ Custom Commands',afk:'💤 AFK',stars:'⭐ Stars',voice:'🔊 Voice',configuration:'✨ Configuration'};
+ const names={
+  home:'🏠 Home',moderation:'🛡️ Moderation',security:'🔐 Security',logging:'📋 Logging',leveling:'📈 Leveling',economy:'💰 Economy',music:'🎧 Music',tickets:'🎫 Tickets & Applications',giveaways:'🎉 Giveaways',fun:'🎭 Fun',counters:'📊 Counters',memberstats:'📈 Member & User Stats',notifications:'🔔 Notifications',invites:'🔗 Invites',announcements:'📢 Announcements',roles:'🎭 Roles',channels:'📁 Channels',welcome:'👋 Welcome',autoresponder:'🤖 Auto Responder',custom:'⚙️ Custom Commands',afk:'💤 AFK',stars:'⭐ Stars',voice:'🔊 Voice',configuration:'✨ Configuration',utility:'🛠️ Utility',reminders:'⏰ Reminders'
+ };
+ const order=Object.keys(groups);
  const icons=['✦','◆','◇','✧','●','◈'];
  const colors=[0x5865F2,0x7C3AED,0x06B6D4,0x3B82F6,0x8B5CF6,0x4F46E5];
  const color=()=>colors[Math.floor(Date.now()/8000)%colors.length];
  const cleanName=k=>names[k].replace(/^\S+\s/,'');
- const allCats=Object.keys(groups);
- const total=allCats.reduce((n,k)=>n+groups[k].length,0);
+ const normalize=items=>[...new Set(items)].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+ for(const k of order)groups[k]=normalize(groups[k]);
+ const total=order.reduce((n,k)=>n+groups[k].length,0);
  const footer={text:'LIGHTCORE  •  HELP CENTER'};
- const menu=()=>new StringSelectMenuBuilder().setCustomId('lc_help_category').setPlaceholder('✦  Browse command categories').addOptions(allCats.slice(0,25).map(k=>({label:cleanName(k),value:k,emoji:names[k].split(' ')[0],description:`${groups[k].length} command${groups[k].length===1?'':'s'}`})));
+ const menu=()=>new StringSelectMenuBuilder().setCustomId('lc_help_category').setPlaceholder('✦  Browse command categories').addOptions(order.slice(0,25).map(k=>({label:cleanName(k).slice(0,100),value:k,emoji:names[k].split(' ')[0],description:`${groups[k].length} command${groups[k].length===1?'':'s'}`})));
+
  function home(){
-  const body=allCats.map((k,i)=>`${icons[i%icons.length]} **${cleanName(k)}**  ·  \`${groups[k].length}\` command${groups[k].length===1?'':'s'}\n   └ \`${P}help ${k}\``).join('\n');
-  return {embeds:[new EmbedBuilder().setAuthor({name:'LIGHTCORE  •  COMMAND CENTER',iconURL:client.user?.displayAvatarURL?.({size:64})}).setTitle('✦ Help Center').setDescription(`**Your all-in-one Discord command center.**\n\n> **Prefix**  \`${P}\`\n> **Categories**  \`${allCats.length}\`\n> **Commands indexed**  \`${total}\`\n\n${body}\n\n**QUICK GUIDE**\nSelect a category below to view its complete command index.\n✨ Commands are displayed in their configured order, with pagination for large categories.`).setColor(color()).setFooter(footer).setTimestamp()],components:[new ActionRowBuilder().addComponents(menu())]};
+  const body=order.map((k,i)=>`${icons[i%icons.length]} **${cleanName(k)}**  ·  \`${groups[k].length}\` command${groups[k].length===1?'':'s'}\n   └ \`${P}help ${k}\``).join('\n');
+  return {embeds:[new EmbedBuilder()
+   .setAuthor({name:'LIGHTCORE  •  COMMAND CENTER',iconURL:client.user?.displayAvatarURL?.({size:64})})
+   .setTitle('✦ Help Center')
+   .setDescription(`**Your all-in-one Discord command center.**\n\n> **Prefix**  \`${P}\`\n> **Categories**  \`${order.length}\`\n> **Commands indexed**  \`${total}\`\n\n${body}\n\n**HOW TO USE**\n> Select a category below. Every command is shown **one per line**, numbered and sorted in a consistent order.\n> Large categories use pages so no commands are hidden.`)
+   .setColor(color()).setFooter(footer).setTimestamp()],components:[new ActionRowBuilder().addComponents(menu())]};
  }
+
  function category(cat,page=0){
   if(!groups[cat])return home();
   const items=groups[cat];
@@ -49,32 +62,48 @@ module.exports=function(client,prefix='.'){
   const start=page*pageSize;
   const current=items.slice(start,start+pageSize);
   const list=current.map((x,i)=>`${String(start+i+1).padStart(2,'0')}  ${icons[(start+i)%icons.length]}  \`${P}${x}\``).join('\n');
-  const note=cat==='tickets'?`\n\n**STAFF FLOW**\n> 🛡️ Setup and configuration require the appropriate server permissions.\n> 🎫 Ticket actions follow the configured staff permissions.`:cat==='economy'?`\n\n**ECONOMY**\n> 💰 Member commands manage personal balances and rewards.\n> 🔐 Administrative economy controls depend on server configuration.`:'';
   const rows=[new ActionRowBuilder().addComponents(menu())];
   if(pages>1)rows.push(new ActionRowBuilder().addComponents(
    new ButtonBuilder().setCustomId(`lc_help_prev:${cat}:${page}`).setLabel('Previous').setEmoji('◀️').setStyle(ButtonStyle.Secondary).setDisabled(page===0),
    new ButtonBuilder().setCustomId('lc_help_home').setLabel('Home').setEmoji('🏠').setStyle(ButtonStyle.Primary),
    new ButtonBuilder().setCustomId(`lc_help_next:${cat}:${page}`).setLabel('Next').setEmoji('▶️').setStyle(ButtonStyle.Secondary).setDisabled(page>=pages-1)
   ));
-  return {embeds:[new EmbedBuilder().setAuthor({name:`LIGHTCORE  •  ${cleanName(cat).toUpperCase()}`,iconURL:client.user?.displayAvatarURL?.({size:64})}).setTitle(`${names[cat]}  ›  Command Index`).setDescription(`**${items.length} commands**  ·  **Page ${page+1}/${pages}**\n\n${list}${note}\n\n> ✦ Commands are numbered and kept in the configured order.\n> ✦ Use the category menu to switch sections.`).setColor(color()).setFooter({text:'LIGHTCORE  •  COMMAND INDEX'}).setTimestamp()],components:rows};
+  return {embeds:[new EmbedBuilder()
+   .setAuthor({name:`LIGHTCORE  •  ${cleanName(cat).toUpperCase()}`,iconURL:client.user?.displayAvatarURL?.({size:64})})
+   .setTitle(`${names[cat]}  ›  Command Index`)
+   .setDescription(`**${items.length} commands**  ·  **Page ${page+1}/${pages}**\n\n${list}\n\n> ✦ One command per line\n> ✦ Alphabetically ordered for quick scanning\n> ✦ Use the dropdown to switch categories`)
+   .setColor(color()).setFooter({text:'LIGHTCORE  •  COMMAND INDEX'}).setTimestamp()],components:rows};
  }
+
  function help(cat='home',page=0){return cat==='home'?home():category(cat,page);}
  const marker=Symbol.for('lightcore.helpFinalInstalled');if(client[marker])return;client[marker]=true;
  client[Symbol.for('lightcore.helpRenderer')]=help;
+
  const old=client.listeners('messageCreate').at(-1);
- if(old){client.removeListener('messageCreate',old);client.on('messageCreate',async m=>{try{if(m.author.bot||!m.guild)return;if(!m.content.startsWith(P))return old(m);const a=m.content.slice(P.length).trim().split(/\s+/),c=(a.shift()||'').toLowerCase();if(c==='help'||c==='h'){await m.reply(help((a[0]||'home').toLowerCase(),Number(a[1])||0));return}return old(m)}catch(e){console.error('[HELP ORDERED]',e)}})}
+ if(old){
+  client.removeListener('messageCreate',old);
+  client.on('messageCreate',async m=>{try{
+   if(m.author.bot||!m.guild)return;
+   if(!m.content.startsWith(P))return old(m);
+   const a=m.content.slice(P.length).trim().split(/\s+/),c=(a.shift()||'').toLowerCase();
+   if(c==='help'||c==='h'){await m.reply(help((a[0]||'home').toLowerCase(),Number(a[1])||0));return}
+   return old(m);
+  }catch(e){console.error('[HELP ORDERED]',e)}});
+ }
+
  client.once('ready',async()=>{
   try{
-   if(!process.env.DISCORD_TOKEN||!client.user?.id)return;
-   const rest=new REST({version:'10'}).setToken(process.env.DISCORD_TOKEN);
    const command={name:'help',description:'Open the LightCore Help Center',options:[
-    {name:'category',description:'Choose a command category',type:ApplicationCommandOptionType.String,required:false,choices:allCats.slice(0,25).map(k=>({name:cleanName(k).slice(0,100),value:k}))},
+    {name:'category',description:'Choose a command category',type:ApplicationCommandOptionType.String,required:false,choices:order.slice(0,25).map(k=>({name:cleanName(k).slice(0,100),value:k}))},
     {name:'page',description:'Page number for the selected category',type:ApplicationCommandOptionType.Integer,required:false,min_value:1,max_value:50}
    ]};
-   await rest.put(Routes.applicationCommands(client.user.id),{body:[command]});
-   console.log('[SLASH] Registered /help using the same Help Center as .help');
+   const commands=await client.application.commands.fetch();
+   const existing=commands.find(c=>c.name==='help');
+   if(existing)await existing.edit(command);else await client.application.commands.create(command);
+   console.log('[SLASH] Registered /help without replacing existing application commands');
   }catch(e){console.error('[HELP SLASH REGISTER]',e?.stack||e)}
  });
+
  client.on('interactionCreate',async i=>{try{
   if(i.isChatInputCommand()&&i.commandName==='help'){
    const cat=i.options.getString('category')||'home';
