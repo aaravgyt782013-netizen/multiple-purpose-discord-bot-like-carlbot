@@ -1,3 +1,5 @@
+const http = require('http');
+
 process.on('uncaughtException', (err) => {
   console.error('[FATAL] Uncaught exception:', err?.stack || err);
 });
@@ -9,6 +11,15 @@ process.on('warning', (warning) => {
 });
 process.on('exit', (code) => {
   console.error(`[PROCESS] Node is exiting with code ${code}`);
+});
+
+const port = Number(process.env.PORT || 10000);
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end('LightCore Discord bot is running.\n');
+});
+server.listen(port, '0.0.0.0', () => {
+  console.log(`[HTTP] Health server listening on port ${port}`);
 });
 
 if (!process.env.DISCORD_TOKEN) {
