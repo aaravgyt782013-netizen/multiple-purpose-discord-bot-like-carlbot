@@ -16,40 +16,15 @@ if (!process.env.DISCORD_TOKEN) {
   console.error('[CONFIG] DISCORD_TOKEN is missing. Add it to Render Environment Variables.');
   process.exitCode = 1;
 } else {
-  console.log(`[START] Loading LightCore with Render prefix: ${process.env.PREFIX || '!'}`);
-
-  // Compatibility fix for the interactive help menu. The previous code used
-  // label[0] for emojis; multi-code-unit emojis could become invalid Discord
-  // emoji data and make the whole .help command fail. Normalize recursively.
-  try {
-    const { StringSelectMenuBuilder } = require('discord.js');
-    const originalAddOptions = StringSelectMenuBuilder.prototype.addOptions;
-    const fixOptions = value => {
-      if (Array.isArray(value)) return value.map(fixOptions);
-      if (!value || typeof value !== 'object' || !value.emoji) return value;
-      return { ...value, emoji: typeof value.emoji === 'string' ? Array.from(value.emoji)[0] : value.emoji };
-    };
-    StringSelectMenuBuilder.prototype.addOptions = function (...options) {
-      return originalAddOptions.call(this, ...fixOptions(options));
-    };
-  } catch (error) {
-    console.warn('[HELP PATCH] Could not install emoji compatibility patch:', error?.message || error);
-  }
-
-  // Prefix-first build: remove stale global slash commands from older builds.
-  if (process.env.CLIENT_ID) {
+  console.log(`[START] Loading unified LightCore engine with Render prefix: ${process.env.PREFIX || '!'}`);
+  const bot = require('./lightcore.js');
+  bot.client.once('ready', async () => {
     try {
-      const { REST, Routes } = require('discord.js');
-      const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-      rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: [] })
-        .then(() => console.log('[DISCORD] Cleared stale global slash commands.'))
-        .catch(error => console.warn('[DISCORD] Could not clear stale slash commands:', error?.message || error));
+      await bot.registerSlash();
     } catch (error) {
-      console.warn('[DISCORD] Slash cleanup unavailable:', error?.message || error);
+      console.error('[SLASH REGISTER] Failed:', error?.stack || error);
     }
-  }
-
-  require('./prefix.js');
+  });
 }
 
 setInterval(() => console.log('[HEALTH] LightCore process is alive.'), 60000).unref();
