@@ -9,6 +9,7 @@ const attachMusic=require('./music.js');
 const attachHelpFinal=require('./help-final.js');
 const attachCounterAutosetup=require('./counter-autosetup.js');
 const attachGlobalEconomy=require('./global-economy.js');
+const attachCommunitySuite=require('./community-suite.js');
 module.exports=function loadFeaturePack(bot){
  if(!bot?.client)throw new Error('LightCore client is unavailable.');
  const dataDir=path.join(process.cwd(),'data');const file=path.join(dataDir,'database.json');
@@ -26,5 +27,6 @@ module.exports=function loadFeaturePack(bot){
  attachCounterAutosetup(bot.client,'.');
  attachGlobalEconomy(bot.client,'.');
  attachHelpFinal(bot.client,'.');
- console.log('[FEATURES] Full command stack loaded | prefix: . | global economy enabled');
+ attachCommunitySuite(bot.client,'.');
+ console.log('[FEATURES] Full command stack loaded | prefix: . | global economy + community suite enabled');
 };
