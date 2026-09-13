@@ -35,7 +35,12 @@ module.exports=function(client,prefix='.'){
   const list=groups[cat].map((x,i)=>`${em[i%em.length]} \`${P}${x}\``).join('\n');
   return {embeds:[new EmbedBuilder().setTitle(`${names[cat]} • COMMANDS`).setDescription(`> **${groups[cat].length} commands**\n\n${list}\n\n> 🔙 Use \`${P}help\` for the main menu.`).setColor([0x5865f2,0x7c3aed,0x2563eb,0x06b6d4][Math.floor(Date.now()/5000)%4]).setTimestamp()],components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('lc_help_ordered_home').setLabel('Help Home').setEmoji('🏠').setStyle(ButtonStyle.Secondary))]};
  }
+ // Only register the help listener once. The previous stack already has its own help handler;
+ // intercepting it here without removing every duplicate listener causes multiple replies.
+ const marker=Symbol.for('lightcore.helpFinalInstalled');
+ if(client[marker])return;
+ client[marker]=true;
  const old=client.listeners('messageCreate').at(-1);
- if(old){client.removeListener('messageCreate',old);client.on('messageCreate',async m=>{try{if(m.author.bot||!m.guild)return;if(!m.content.startsWith(P))return old(m);const a=m.content.slice(P.length).trim().split(/\s+/),c=(a.shift()||'').toLowerCase();if(c==='help'||c==='h')return m.reply(help((a[0]||'home').toLowerCase()));return old(m)}catch(e){console.error('[HELP ORDERED]',e)}})}
+ if(old){client.removeListener('messageCreate',old);client.on('messageCreate',async m=>{try{if(m.author.bot||!m.guild)return;if(!m.content.startsWith(P))return old(m);const a=m.content.slice(P.length).trim().split(/\s+/),c=(a.shift()||'').toLowerCase();if(c==='help'||c==='h'){await m.reply(help((a[0]||'home').toLowerCase()));return;}return old(m)}catch(e){console.error('[HELP ORDERED]',e)}})}
  client.on('interactionCreate',async i=>{try{if(i.isStringSelectMenu()&&i.customId==='lc_help_ordered')return i.update(help(i.values[0]));if(i.isButton()&&i.customId==='lc_help_ordered_home')return i.update(help('home'));}catch(e){console.error('[HELP INTERACTION]',e)}});
 };
