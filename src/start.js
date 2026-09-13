@@ -21,12 +21,8 @@ if (!process.env.DISCORD_TOKEN) {
   console.log('[START] Loading LightCore All-in-One engine | prefix: .');
   const bot = require('./ultra.js');
   require('./feature-loader.js')(bot);
-  if (bot && bot.client && bot.registerSlash) {
-    bot.client.once('ready', async () => {
-      try { await bot.registerSlash(); }
-      catch (error) { console.error('[SLASH REGISTER] Failed:', error?.stack || error); }
-    });
-  }
+  // Replace the old slash-command registry with the single unified /commands command.
+  require('./commands-slash.js')(bot.client);
 }
 
 setInterval(() => console.log('[HEALTH] LightCore process is alive.'), 60000).unref();
