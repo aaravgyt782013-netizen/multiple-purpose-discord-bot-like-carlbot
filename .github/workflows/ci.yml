@@ -24,6 +24,35 @@ jobs:
       - name: Compile all Python files
         run: python -m compileall -q .
       - name: Import every loaded cog
-        run: python -c "import cogs.moderation, cogs.automod, cogs.logging, cogs.leveling, cogs.tickets, cogs.roles, cogs.currency, cogs.music, cogs.embeds, cogs.panels, cogs.welcome, cogs.giveaways, cogs.custom_commands, cogs.temp_voice, cogs.fun, cogs.games, cogs.serverinfo, cogs.admin, cogs.memberstats, cogs.applications, cogs.advanced_safe, cogs.core; print('All loaded cogs imported successfully')"
+        run: python -c "import cogs.moderation, cogs.automod, cogs.logging, cogs.leveling, cogs.tickets, cogs.roles, cogs.currency, cogs.music, cogs.embeds, cogs.panels, cogs.welcome, cogs.giveaways, cogs.custom_commands, cogs.temp_voice, cogs.fun, cogs.games, cogs.serverinfo, cogs.admin, cogs.memberstats, cogs.applications, cogs.advanced_safe, cogs.activitystats, cogs.core; print('All loaded cogs imported successfully')"
       - name: Initialize database schema
         run: python -c "from database import init_db; init_db(); print('Database schema initialized successfully')"
+      - name: Verify activity persistence path
+        run: |
+          python - <<'PY'
+          import asyncio
+          import tempfile
+          from pathlib import Path
+          import database
+          from cogs.activitystats import ActivityStats
+
+          async def main():
+              old_path = database.DB_PATH
+              database.DB_PATH = Path(tempfile.mkdtemp()) / 'activity-test.db'
+              database.init_db()
+              cog = ActivityStats(None)
+              cog.record_message(123, 456)
+              cog.record_message(123, 456)
+              cog.record_message(123, 456)
+              cog._add_voice_pending(123, 456, 3661)
+              await cog.flush()
+              with database.connect() as db:
+                  row = db.execute('SELECT message_count, voice_seconds FROM activity_stats WHERE guild_id=? AND user_id=?', (123, 456)).fetchone()
+                  bucket = db.execute('SELECT message_count, voice_seconds FROM activity_buckets WHERE guild_id=? AND user_id=?', (123, 456)).fetchone()
+              assert tuple(row) == (3, 3661), row
+              assert tuple(bucket) == (3, 3661), bucket
+              database.DB_PATH = old_path
+              print('Activity persistence test passed: messages=3 voice_seconds=3661')
+
+          asyncio.run(main())
+          PY
