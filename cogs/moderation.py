@@ -55,6 +55,22 @@ class Moderation(commands.Cog):
                 extra = " Automatic timeout could not be applied; check my Moderate Members permission."
         await ctx.send(f"⚠️ Warned {member.mention} ({count} total) • Case #{case}.{extra}")
 
+    @commands.hybrid_command(name="purge", description="Delete a number of recent messages.")
+    @commands.has_permissions(manage_messages=True)
+    async def purge(self, ctx, amount: commands.Range[int, 1, 100]):
+        if not isinstance(ctx.channel, discord.TextChannel):
+            return await ctx.send("❌ Purge can only be used in a text channel.")
+        # Defer slash interactions before the potentially slow bulk-delete call.
+        if ctx.interaction is not None:
+            await ctx.defer(ephemeral=True)
+        try:
+            deleted = await ctx.channel.purge(limit=amount)
+        except discord.Forbidden:
+            return await ctx.send("❌ I need Manage Messages and Read Message History to purge messages.", ephemeral=ctx.interaction is not None)
+        except discord.HTTPException as exc:
+            return await ctx.send(f"❌ Discord rejected the purge: `{exc}`", ephemeral=ctx.interaction is not None)
+        await ctx.send(f"🧹 Deleted **{len(deleted)}** messages.", ephemeral=ctx.interaction is not None)
+
     @commands.hybrid_command(name="warnings", description="Show a member's recent warnings.")
     @commands.has_permissions(moderate_members=True)
     async def warnings(self, ctx, member: discord.Member):
