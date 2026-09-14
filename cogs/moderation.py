@@ -15,21 +15,21 @@ class Moderation(commands.Cog):
             cur = db.execute("INSERT INTO moderation_logs(guild_id,action,target_id,moderator_id,reason) VALUES(?,?,?,?,?)", (guild_id, action, target_id, moderator_id, reason))
             return cur.lastrowid
 
-    @commands.hybrid_command(name="ban", description="Ban a member.")
+    @commands.hybrid_command(name="ban", aliases=["b"], description="Ban a member.")
     @commands.has_permissions(ban_members=True)
     async def ban(self, ctx, member: discord.Member, *, reason="No reason provided"):
         await member.ban(reason=reason)
         case = self.log_action(ctx.guild.id, "ban", member.id, ctx.author.id, reason)
         await ctx.send(f"🔨 Banned {member.mention} • Case #{case}: {reason}")
 
-    @commands.hybrid_command(name="kick", description="Kick a member.")
+    @commands.hybrid_command(name="kick", aliases=["k"], description="Kick a member.")
     @commands.has_permissions(kick_members=True)
     async def kick(self, ctx, member: discord.Member, *, reason="No reason provided"):
         await member.kick(reason=reason)
         case = self.log_action(ctx.guild.id, "kick", member.id, ctx.author.id, reason)
         await ctx.send(f"👢 Kicked {member.mention} • Case #{case}: {reason}")
 
-    @commands.hybrid_command(name="mute", description="Timeout a member for a number of minutes.")
+    @commands.hybrid_command(name="mute", aliases=["m"], description="Timeout a member for a number of minutes.")
     @commands.has_permissions(moderate_members=True)
     async def mute(self, ctx, member: discord.Member, minutes: int = 10, *, reason="No reason provided"):
         minutes = max(1, min(minutes, 40320))
