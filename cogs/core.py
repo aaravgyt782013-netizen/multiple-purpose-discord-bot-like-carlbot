@@ -3,6 +3,8 @@ import os
 import discord
 from discord.ext import commands
 
+# Human-friendly help categories. The cog names below are matched against the
+# actual loaded cog names, so every registered command has a home in .help.
 CATEGORIES = [
     ("Moderation", "🛡️", {"Moderation", "AutoMod"}),
     ("Levels", "⭐", {"Leveling"}),
@@ -22,7 +24,6 @@ CATEGORIES = [
     ("Utility", "🧰", {"Utility"}),
     ("Core", "💠", {"Core"}),
 ]
-CATEGORY_MAP = {name: (emoji, cogs) for name, emoji, cogs in CATEGORIES}
 
 COMMAND_PERMISSIONS = {
     "ban": "Ban Members", "kick": "Kick Members", "mute": "Moderate Members", "warn": "Moderate Members",
@@ -45,6 +46,25 @@ def logo_url(bot):
     return os.getenv("LIGHTCORE_LOGO_URL") or (bot.user.display_avatar.url if bot.user else None)
 
 
+def get_help_categories(bot):
+    """Return configured categories plus a safe fallback for any new cog.
+
+    This prevents newly added cogs/commands from silently disappearing from
+    .help just because a developer forgot to update the category list.
+    """
+    loaded_cogs = {cog.__class__.__name__ for cog in bot.cogs.values()}
+    categories = list(CATEGORIES)
+    assigned = set()
+    for _, _, cog_names in categories:
+        assigned.update(cog_names)
+
+    # Keep the normal UI stable, but automatically expose any future cog.
+    unknown = sorted(loaded_cogs - assigned)
+    if unknown:
+        categories.append(("Other", "📦", set(unknown)))
+    return categories
+
+
 class HelpView(discord.ui.View):
     def __init__(self, bot, author_id):
         super().__init__(timeout=180)
@@ -55,16 +75,26 @@ class HelpView(discord.ui.View):
         self.message = None
         self.rebuild()
 
+    @property
+    def categories(self):
+        return get_help_categories(self.bot)
+
+    def category_map(self):
+        return {name: (emoji, cogs) for name, emoji, cogs in self.categories}
+
     def rebuild(self):
         self.clear_items()
         options = [discord.SelectOption(label="Home", value="__home__", emoji="🏠", description="Return to LightCore home")]
-        options += [discord.SelectOption(label=name, value=name, emoji=emoji, description=f"View {name} commands") for name, emoji, _ in CATEGORIES]
-        select = discord.ui.Select(placeholder="Choose a help category…", options=options)
+        for name, emoji, _ in self.categories:
+            options.append(discord.SelectOption(label=name, value=name, emoji=emoji, description=f"View {name} commands"))
+        select = discord.ui.Select(placeholder="Choose a help category…", options=options[:25])
         select.callback = self.select_callback
         self.add_item(select)
+
         home = discord.ui.Button(label="Home", emoji="🏠", style=discord.ButtonStyle.secondary)
         home.callback = self.home_callback
         self.add_item(home)
+
         if self.category:
             pages = max(1, math.ceil(len(self.entries()) / 8))
             if pages > 1:
@@ -84,8 +114,21 @@ class HelpView(discord.ui.View):
     def entries(self):
         if not self.category:
             return []
-        cogs = CATEGORY_MAP[self.category][1]
-        return sorted([command for command in self.bot.walk_commands() if not command.hidden and (command.cog_name or "Core") in cogs], key=lambda command: command.qualified_name.lower())
+        category_map = self.category_map()
+        if self.category not in category_map:
+            return []
+        cogs = category_map[self.category][1]
+        return sorted(
+            [
+                command
+                for command in self.bot.walk_commands()
+                if not command.hidden and (command.cog_name or "Core") in cogs
+            ],
+            key=lambda command: command.qualified_name.lower(),
+        )
+
+    def total_visible_commands(self):
+        return len([command for command in self.bot.walk_commands() if not command.hidden])
 
     @staticmethod
     def syntax(command):
@@ -111,16 +154,34 @@ class HelpView(discord.ui.View):
         return embed
 
     def home_embed(self):
-        embed = discord.Embed(title="LightCore • Help", description="Select a category to browse commands, syntax, descriptions and short aliases.", color=discord.Color.blurple())
+        embed = discord.Embed(
+            title="LightCore • Help",
+            description="Select a category to browse **every visible registered command**, with syntax, aliases, descriptions and permission notes.",
+            color=discord.Color.blurple(),
+        )
         self.brand(embed)
-        embed.add_field(name="📖 Usage", value="Use `.help` to open this interactive menu. Commands are grouped automatically from their loaded cogs, so newly added commands appear in their matching category.", inline=False)
-        for name, emoji, _ in CATEGORIES:
-            embed.add_field(name=f"{emoji} {name}", value="Use the dropdown below.", inline=True)
-        embed.set_footer(text="LightCore • Interactive Help • Expires after 3 minutes")
+        embed.add_field(
+            name="📖 Usage",
+            value=(
+                "Use `.help` to open this interactive menu. Commands are collected directly from the loaded bot registry, "
+                "so newly added commands automatically appear in their matching category."
+            ),
+            inline=False,
+        )
+        embed.add_field(name="📊 Command Count", value=f"**{self.total_visible_commands()}** visible commands registered", inline=False)
+        for name, emoji, cogs in self.categories:
+            count = sum(
+                1
+                for command in self.bot.walk_commands()
+                if not command.hidden and (command.cog_name or "Core") in cogs
+            )
+            embed.add_field(name=f"{emoji} {name}", value=f"**{count}** commands • use the dropdown", inline=True)
+        embed.set_footer(text="LightCore • Interactive Help • Every visible command • Expires after 3 minutes")
         return embed
 
     def category_embed(self):
-        emoji = CATEGORY_MAP[self.category][0]
+        category_map = self.category_map()
+        emoji = category_map[self.category][0]
         entries = self.entries()
         pages = max(1, math.ceil(len(entries) / 8))
         self.page = max(0, min(self.page, pages - 1))
@@ -131,8 +192,8 @@ class HelpView(discord.ui.View):
             description = (command.description or "No description provided.").replace("\n", " ")
             embed.add_field(name=f"`{self.syntax(command)}`", value=description + self.permission_note(command), inline=False)
         if not current:
-            embed.description = "No commands are registered in this category yet."
-        embed.set_footer(text=f"Page {self.page + 1}/{pages} • LightCore")
+            embed.description = "No visible commands are registered in this category yet."
+        embed.set_footer(text=f"Page {self.page + 1}/{pages} • {len(entries)} commands in this category • LightCore")
         return embed
 
     async def select_callback(self, interaction):
