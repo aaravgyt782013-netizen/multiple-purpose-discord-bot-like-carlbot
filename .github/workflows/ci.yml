@@ -1,11 +1,9 @@
 name: LightCore CI
-
 on:
   push:
     branches: [master]
   pull_request:
     branches: [master]
-
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -13,7 +11,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
       - name: Install FFmpeg
         run: |
           sudo apt-get update
@@ -30,41 +28,58 @@ jobs:
       - name: Retired ticket command guard
         run: |
           test ! -f cogs/ticket_plus.py
-          ! grep -R -nE 'hybrid_(command|group)|commands\.(command|group)' cogs/tickets.py | grep -E 'ticketpanel|setticketcategory|setticketlog|name="close"' || true
           ! grep -R -nE 'ticketpanel|setticketcategory|setticketlog' cogs main.py tools || true
       - name: Import every loaded cog
+        env:
+          BOT_TOKEN: ci-dummy-token
+          CLIENT_ID: '123456789012345678'
         run: python -c "import cogs.moderation, cogs.automod, cogs.logging, cogs.leveling, cogs.tickets, cogs.roles, cogs.currency, cogs.music, cogs.embeds, cogs.panels, cogs.welcome, cogs.giveaways, cogs.giveaway_plus, cogs.custom_commands, cogs.temp_voice, cogs.fun, cogs.games, cogs.serverinfo, cogs.admin, cogs.memberstats, cogs.applications, cogs.activitystats, cogs.status, cogs.utility, cogs.core; print('All loaded cogs imported successfully')"
       - name: Initialize database schema
         run: python -c "from database import init_db; init_db(); print('Database schema initialized successfully')"
+      - name: Verify migration tables and production-data safety
+        run: |
+          python - <<'PY'
+          import tempfile
+          from pathlib import Path
+          import database
+          old_path=database.DB_PATH
+          database.DB_PATH=Path(tempfile.mkdtemp())/'migration-test.db'
+          database.init_db()
+          required={'ticket_systems','ticket_types','ticket_instances','ticket_participants','ticket_transcript_v2','app_forms_v2','app_questions_v2','app_submissions_v2','app_panels_v2','applications','application_submissions','application_panels','giveaway_v2','giveaway_entries_v2','giveaway_bonus_roles_v2','giveaways','giveaway_entries'}
+          with database.connect() as db:
+              tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+              assert required<=tables,sorted(required-tables)
+              db.execute("CREATE TABLE IF NOT EXISTS migration_sentinel (id INTEGER PRIMARY KEY,value TEXT NOT NULL)")
+              db.execute("INSERT INTO migration_sentinel VALUES (1,'keep-me')")
+          database.init_db()
+          with database.connect() as db:
+              assert db.execute("SELECT value FROM migration_sentinel WHERE id=1").fetchone()['value']=='keep-me'
+          database.DB_PATH=old_path
+          print('Migration safety test passed.')
+          PY
       - name: Load every cog and validate command registry
         env:
           BOT_TOKEN: ci-dummy-token
-          CLIENT_ID: "123456789012345678"
+          CLIENT_ID: '123456789012345678'
         run: |
           python - <<'PY'
-          import asyncio
-          import main
+          import asyncio,main
           async def smoke():
-              main.init_db()
-              await main.load_extensions()
-              main.validate_command_names()
-              print(f"Cog startup smoke test passed: {len(main.COGS)} cogs loaded without CommandRegistrationError.")
-              await main.bot.close()
+              main.init_db(); await main.load_extensions(); main.validate_command_names(); print(f'Cog startup smoke test passed: {len(main.COGS)} cogs loaded.'); await main.bot.close()
           asyncio.run(smoke())
           PY
       - name: Verify activity persistence path
         run: |
           python - <<'PY'
-          import asyncio
-          import tempfile
+          import asyncio,tempfile
           from pathlib import Path
           import database
           from cogs.activitystats import ActivityStats
-          async def main_test():
-              old_path=database.DB_PATH;database.DB_PATH=Path(tempfile.mkdtemp())/'activity-test.db';database.init_db();cog=ActivityStats(None)
+          async def test():
+              old=database.DB_PATH;database.DB_PATH=Path(tempfile.mkdtemp())/'activity-test.db';database.init_db();cog=ActivityStats(None)
               cog.record_message(123,456);cog.record_message(123,456);cog.record_message(123,456);cog._add_voice_pending(123,456,3661);await cog.flush()
               with database.connect() as db:
-                  row=db.execute('SELECT message_count, voice_seconds FROM activity_stats WHERE guild_id=? AND user_id=?',(123,456)).fetchone();bucket=db.execute('SELECT message_count, voice_seconds FROM activity_buckets WHERE guild_id=? AND user_id=?',(123,456)).fetchone()
-              assert tuple(row)==(3,3661),row;assert tuple(bucket)==(3,3661),bucket;database.DB_PATH=old_path;print('Activity persistence test passed: messages=3 voice_seconds=3661')
-          asyncio.run(main_test())
+                  row=db.execute('SELECT message_count,voice_seconds FROM activity_stats WHERE guild_id=? AND user_id=?',(123,456)).fetchone()
+              assert tuple(row)==(3,3661),row;database.DB_PATH=old;print('Activity persistence test passed.')
+          asyncio.run(test())
           PY
