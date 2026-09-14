@@ -1,5 +1,8 @@
 {
   "name": "lightcore-python-migration",
   "private": true,
-  "description": "LightCore is now a Python discord.py bot. Node runtime is no longer used."
+  "description": "LightCore is a Python discord.py bot.",
+  "scripts": {
+    "start": "python main.py"
+  }
 }
