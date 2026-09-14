@@ -1,8 +1,11 @@
 import asyncio
 import logging
 import os
+import shutil
+import time
 
 import discord
+import wavelink
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -12,6 +15,13 @@ from health_server import start_health_server
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CLIENT_ID = os.getenv("CLIENT_ID")
+LAVALINK_URI = os.getenv("LAVALINK_URI")
+LAVALINK_PASSWORD = os.getenv("LAVALINK_PASSWORD")
+LAVALINK_NAME = os.getenv("LAVALINK_NAME", "primary")
+SUPPORT_SERVER_URL = os.getenv("SUPPORT_SERVER_URL", "")
+PRIVACY_POLICY_URL = os.getenv("PRIVACY_POLICY_URL", "")
+TERMS_URL = os.getenv("TERMS_URL", "")
+INVITE_URL = os.getenv("INVITE_URL", "")
 PREFIX = "."
 BRAND = "LightCore"
 
@@ -24,28 +34,58 @@ logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] %(levelname)s %(name)s: %(message)s",
 )
+log = logging.getLogger("lightcore")
 intents = discord.Intents.all()
 
-bot = commands.Bot(
+
+class LightCoreBot(commands.Bot):
+    async def setup_hook(self):
+        await load_extensions()
+        await connect_lavalink(self)
+
+
+bot = LightCoreBot(
     command_prefix=PREFIX,
     intents=intents,
     case_insensitive=True,
     help_command=None,
     activity=discord.Game(name=".help | LightCore"),
 )
+bot.started_at = time.monotonic()
 
 COGS = [
     "moderation", "automod", "logging", "leveling", "tickets", "roles",
     "currency", "music", "embeds", "panels", "welcome", "giveaways",
     "custom_commands", "temp_voice", "fun", "games", "serverinfo",
-    "admin", "memberstats", "applications", "core",
+    "admin", "memberstats", "applications", "advanced", "core",
 ]
 
 
 async def load_extensions():
     for name in COGS:
-        await bot.load_extension(f"cogs.{name}")
-        logging.info("Loaded cog: %s", name)
+        try:
+            await bot.load_extension(f"cogs.{name}")
+            log.info("Loaded cog: %s", name)
+        except Exception:
+            log.exception("Failed to load cog: %s", name)
+            raise
+
+
+async def connect_lavalink(client):
+    if not LAVALINK_URI or not LAVALINK_PASSWORD:
+        log.error("Lavalink NOT configured: set LAVALINK_URI and LAVALINK_PASSWORD. Music commands will explain this to users.")
+        return
+    try:
+        node = wavelink.Node(
+            identifier=LAVALINK_NAME,
+            uri=LAVALINK_URI,
+            password=LAVALINK_PASSWORD,
+            retries=3,
+        )
+        await wavelink.Pool.connect(nodes=[node], client=client)
+        log.info("Lavalink connection requested: %s (%s)", LAVALINK_NAME, LAVALINK_URI)
+    except Exception:
+        log.exception("Lavalink FAILED to connect. Check URI, password, TLS, firewall, and that the Lavalink v4 server is online.")
 
 
 def validate_command_names():
@@ -70,7 +110,7 @@ def validate_command_names():
         formatted = ", ".join(f"{name}: {owners}" for name, owners in slash_duplicates.items())
         raise RuntimeError(f"Slash command collision detected: {formatted}")
 
-    logging.info(
+    log.info(
         "Integration validation passed: %d prefix commands and %d slash commands registered without collisions.",
         len(prefix_names),
         len(slash_names),
@@ -79,22 +119,54 @@ def validate_command_names():
 
 @bot.event
 async def on_ready():
-    logging.info("%s online as %s (%s) • Client ID %s", BRAND, bot.user, bot.user.id, CLIENT_ID)
+    log.info("%s online as %s (%s) • Client ID %s", BRAND, bot.user, bot.user.id, CLIENT_ID)
+    if shutil.which("ffmpeg"):
+        log.info("FFmpeg binary detected in PATH: %s (not used by Lavalink playback)", shutil.which("ffmpeg"))
+    else:
+        log.warning("FFmpeg binary not found in PATH. This does not block Lavalink playback, because audio decoding runs on the Lavalink server.")
     if getattr(bot, "_slash_synced", False):
         return
     try:
         synced = await bot.tree.sync()
         bot._slash_synced = True
-        logging.info("Synced %d slash commands", len(synced))
+        log.info("Synced %d slash commands", len(synced))
     except Exception:
-        logging.exception("Slash command sync failed")
+        log.exception("Slash command sync failed")
+
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        return
+    if isinstance(error, commands.CommandOnCooldown):
+        await ctx.send(f"⏳ Slow down — try again in **{error.retry_after:.1f}s**.")
+        return
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("❌ You do not have the required permission for this command.")
+        return
+    if isinstance(error, commands.BotMissingPermissions):
+        await ctx.send("❌ I am missing a Discord permission required for that action. Check my role/channel permissions.")
+        return
+    if isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send(f"❌ Missing `{error.param.name}`. Use `.help {ctx.command.qualified_name}` for syntax.")
+        return
+    if isinstance(error, commands.BadArgument):
+        await ctx.send("❌ One of the arguments could not be understood. Check the member/channel/number and try again.")
+        return
+    if isinstance(error, commands.CheckFailure):
+        await ctx.send("❌ This command cannot be used here or you do not meet its requirements.")
+        return
+    log.exception("Unhandled command error in %s", getattr(ctx.command, "qualified_name", "unknown"), exc_info=error)
+    try:
+        await ctx.send("⚠️ LightCore hit an internal error while processing that command. The error was logged; please try again later.")
+    except Exception:
+        log.exception("Could not send global error response")
 
 
 async def runner():
     init_db()
-    await load_extensions()
     validate_command_names()
-    logging.info("Startup dry-run validation passed; connecting to Discord.")
+    log.info("Startup validation passed; connecting to Discord.")
     await bot.start(BOT_TOKEN)
 
 
