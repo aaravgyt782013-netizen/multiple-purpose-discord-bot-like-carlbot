@@ -7,9 +7,9 @@ module.exports=function attachProSuite(client,prefix='.'){
   const started=Date.now();
   const cooldowns=new Map();
   const aliases=new Map([
-    ['h','help'],['?','help'],['p','ping'],['si','serverinfo'],['ui','userinfo'],['av','avatar'],
+    ['h','help'],['?','help'],['si','serverinfo'],['ui','userinfo'],['av','avatar'],
     ['np','nowplaying'],['q','queue'],['rm','remove'],['vc','voice'],['mc','membercount'],
-    ['delchannel','deletechannel'],['delch','deletechannel'],['up','uptime'],['stats','botstats']
+    ['delchannel','deletechannel'],['delch','deletechannel'],['up','uptime']
   ]);
   const dataDir=path.join(process.cwd(),'data');
   const file=path.join(dataDir,'pro-suite.json');
@@ -41,7 +41,6 @@ module.exports=function attachProSuite(client,prefix='.'){
     if(!client.user||!process.env.DISCORD_TOKEN)return;
     const id=client.application?.id||process.env.CLIENT_ID;if(!id)return;
     const commands=[
-      {name:'help',description:'Open the LightCore command center'},
       {name:'ping',description:'Check bot latency'},
       {name:'uptime',description:'Show bot uptime'},
       {name:'botstats',description:'Show bot statistics'},
@@ -64,7 +63,7 @@ module.exports=function attachProSuite(client,prefix='.'){
       const map=new Map((Array.isArray(existing)?existing:[]).map(x=>[x.name,x]));
       for(const c of commands)map.set(c.name,c);
       await rest.put(Routes.applicationCommands(id),{body:Array.from(map.values())});
-      console.log(`[PRO] Registered/updated ${commands.length} core slash commands while preserving existing commands.`)
+      console.log(`[PRO] Registered/updated ${commands.length} core slash commands while preserving existing application commands.`)
     }catch(e){console.error('[PRO SLASH]',e?.message||e)}
   }
   client.once('ready',()=>{console.log(`[PRO] LightCore Pro suite ready | uptime base ${new Date(started).toISOString()}`);slashRegister().catch(()=>{})});
@@ -74,7 +73,6 @@ module.exports=function attachProSuite(client,prefix='.'){
       if(!i.isChatInputCommand())return;
       const c=i.commandName;
       const fake={guild:i.guild,member:i.member,author:i.user,channel:i.channel,mentions:{channels:{first:()=>i.options.getChannel('channel')}},reply:async o=>i.reply(o)};
-      if(c==='help')return i.reply({embeds:[emb('🤖 LightCore Command Center',`Prefix: \`${P}\`\n\nUse **${P}help <category>** for detailed commands.\nCategories include moderation, security, logging, tickets, music, economy, leveling, applications, fun, utility, roles, welcome, voice and more.`)]});
       if(c==='ping')return i.reply(`🏓 Pong! **${client.ws.ping}ms**`);
       if(c==='uptime')return i.reply({embeds:[emb('⏱️ LightCore Uptime',`**Uptime:** ${fmt(Date.now()-started)}\n**Ping:** ${client.ws.ping}ms\n**Servers:** ${client.guilds.cache.size}\n**Users cached:** ${client.users.cache.size}`)]});
       if(c==='botstats')return i.reply({embeds:[emb('📊 LightCore Statistics',`**Servers:** ${client.guilds.cache.size}\n**Users cached:** ${client.users.cache.size}\n**Channels cached:** ${client.channels.cache.size}\n**Ping:** ${client.ws.ping}ms\n**Uptime:** ${fmt(Date.now()-started)}`)]});
