@@ -19,7 +19,10 @@ if not BOT_TOKEN:
 if not CLIENT_ID:
     raise RuntimeError("CLIENT_ID is missing from .env")
 
-logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s %(name)s: %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] %(levelname)s %(name)s: %(message)s",
+)
 intents = discord.Intents.all()
 
 bot = commands.Bot(
@@ -34,18 +37,8 @@ COGS = [
     "moderation", "automod", "logging", "leveling", "tickets", "roles",
     "currency", "music", "embeds", "panels", "welcome", "giveaways",
     "custom_commands", "temp_voice", "fun", "games", "serverinfo",
-    "admin", "memberstats", "applications",
+    "admin", "memberstats", "applications", "core",
 ]
-
-
-@bot.event
-async def on_ready():
-    logging.info("%s online as %s (%s) • Client ID %s", BRAND, bot.user, bot.user.id, CLIENT_ID)
-    try:
-        synced = await bot.tree.sync()
-        logging.info("Synced %d slash commands", len(synced))
-    except Exception:
-        logging.exception("Slash command sync failed")
 
 
 async def load_extensions():
@@ -54,9 +47,53 @@ async def load_extensions():
         logging.info("Loaded cog: %s", name)
 
 
+def validate_command_names():
+    prefix_names = {}
+    for command in bot.walk_commands():
+        if isinstance(command, commands.Group):
+            continue
+        name = command.qualified_name.lower()
+        prefix_names.setdefault(name, []).append(command.cog_name or "unknown")
+
+    duplicates = {name: owners for name, owners in prefix_names.items() if len(owners) > 1}
+    if duplicates:
+        formatted = ", ".join(f"{name}: {owners}" for name, owners in duplicates.items())
+        raise RuntimeError(f"Command name collision detected: {formatted}")
+
+    slash_names = {}
+    for command in bot.tree.walk_commands():
+        name = command.qualified_name.lower()
+        slash_names.setdefault(name, []).append(type(command).__name__)
+    slash_duplicates = {name: owners for name, owners in slash_names.items() if len(owners) > 1}
+    if slash_duplicates:
+        formatted = ", ".join(f"{name}: {owners}" for name, owners in slash_duplicates.items())
+        raise RuntimeError(f"Slash command collision detected: {formatted}")
+
+    logging.info(
+        "Integration validation passed: %d prefix commands and %d slash commands registered without collisions.",
+        len(prefix_names),
+        len(slash_names),
+    )
+
+
+@bot.event
+async def on_ready():
+    logging.info("%s online as %s (%s) • Client ID %s", BRAND, bot.user, bot.user.id, CLIENT_ID)
+    if getattr(bot, "_slash_synced", False):
+        return
+    try:
+        synced = await bot.tree.sync()
+        bot._slash_synced = True
+        logging.info("Synced %d slash commands", len(synced))
+    except Exception:
+        logging.exception("Slash command sync failed")
+
+
 async def runner():
     init_db()
     await load_extensions()
+    validate_command_names()
+    logging.info("Startup dry-run validation passed; connecting to Discord.")
     await bot.start(BOT_TOKEN)
 
 
