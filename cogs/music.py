@@ -1,7 +1,6 @@
 import logging
 import random
 from collections import defaultdict, deque
-from datetime import timedelta
 
 import discord
 from discord.ext import commands
@@ -15,7 +14,7 @@ log = logging.getLogger(__name__)
 
 
 class Music(commands.Cog):
-    """Lavalink-backed music with a live-in-place control panel."""
+    """Lavalink-backed music with a compact, editable-in-place control panel."""
 
     def __init__(self, bot):
         self.bot = bot
@@ -30,14 +29,22 @@ class Music(commands.Cog):
         if wavelink is None:
             return None
         try:
-            return wavelink.Pool.get_node()
+            node = wavelink.Pool.get_node()
+            if node.status is not wavelink.NodeStatus.CONNECTED:
+                return None
+            return node
         except Exception:
             return None
 
     def node_error(self):
         if wavelink is None:
             return "Wavelink is not installed."
-        return "No Lavalink node is connected. Check LAVALINK_URI/LAVALINK_PASSWORD and the node status."
+        try:
+            node = wavelink.Pool.get_node()
+            status = getattr(node, "status", "unknown")
+            return f"No Lavalink node is connected (current node status: `{status}`). Check the Render Lavalink env vars and node availability."
+        except Exception:
+            return "No Lavalink node is connected. Check the Render Lavalink env vars and node availability."
 
     async def _player(self, ctx):
         if not ctx.guild:
@@ -77,37 +84,21 @@ class Music(commands.Cog):
         seconds = max(0, int(ms or 0) // 1000)
         return f"{seconds // 60}:{seconds % 60:02d}"
 
-    @staticmethod
-    def _bar(position_ms, length_ms, size=16):
-        if not length_ms:
-            return "░" * size
-        ratio = max(0, min(1, position_ms / length_ms))
-        point = min(size - 1, int(ratio * size))
-        return "".join("🔘" if i == point else "▬" for i in range(size))
-
-    def _progress(self, player):
-        current = player.current
-        position = getattr(player, "position", timedelta(0))
-        position_ms = int(position.total_seconds() * 1000) if isinstance(position, timedelta) else int(position or 0)
-        length = int(getattr(current, "length", 0) or 0)
-        return f"`{self._duration(position_ms)}` {self._bar(position_ms, length)} `{self._duration(length)}`"
-
     def _embed(self, guild_id):
         guild = self.bot.get_guild(guild_id)
         player = guild.voice_client if guild else None
         if not isinstance(player, wavelink.Player) or not player.current:
-            return discord.Embed(title="🎵 LightCore Music", description="Nothing is playing right now.", color=discord.Color.blurple())
+            return discord.Embed(title="🎵 Now Playing", description="Nothing is playing right now.", color=discord.Color.blurple())
         track = player.current
-        requester = self.requesters.get(guild_id, "Unknown")
-        embed = discord.Embed(title="🎵 Now Playing", description=f"**{track.title}**\nby `{track.author}`", color=discord.Color.blurple())
+        requester = self.requesters.get(guild_id)
+        embed = discord.Embed(title="🎵 Now Playing", description=f"**[{track.title}]({getattr(track, 'uri', None) or '#'})**", color=discord.Color.blurple())
         artwork = getattr(track, "artwork", None)
         if artwork:
             embed.set_thumbnail(url=artwork)
-        embed.add_field(name="Progress", value=self._progress(player), inline=False)
-        embed.add_field(name="Requester", value=f"<@{requester}>" if isinstance(requester, int) else str(requester), inline=True)
-        embed.add_field(name="Loop", value=self.loop_modes[guild_id], inline=True)
-        embed.add_field(name="Queue", value=f"{len(self.queues[guild_id])} track(s)", inline=True)
-        embed.set_footer(text="Only members in the bot's voice channel can use these controls.")
+        embed.add_field(name="Duration", value=f"`{self._duration(track.length)}`", inline=True)
+        embed.add_field(name="Requested by", value=f"<@{requester}>" if requester else "Unknown", inline=True)
+        embed.add_field(name="Album Art", value="Shown above" if artwork else "Not available", inline=True)
+        embed.set_footer(text=f"Queue: {len(self.queues[guild_id])} • Loop: {self.loop_modes[guild_id]}")
         return embed
 
     async def _update_panel(self, guild_id, message=None):
@@ -132,13 +123,13 @@ class Music(commands.Cog):
         queue = self.queues[guild_id]
         if self.loop_modes[guild_id] == "track" and player.current:
             track = player.current
-            self.requesters[guild_id] = self.track_requesters.get(id(track), self.requesters.get(guild_id, "Unknown"))
+            self.requesters[guild_id] = self.track_requesters.get(id(track), self.requesters.get(guild_id))
             await player.play(track)
             await self._update_panel(guild_id)
             return
         if queue:
             track = queue.popleft()
-            self.requesters[guild_id] = self.track_requesters.get(id(track), self.requesters.get(guild_id, "Unknown"))
+            self.requesters[guild_id] = self.track_requesters.get(id(track), self.requesters.get(guild_id))
             await player.play(track)
             await self._update_panel(guild_id)
             return
@@ -172,11 +163,16 @@ class Music(commands.Cog):
         try:
             if player.current:
                 self.queues[ctx.guild.id].append(track)
-                await ctx.send(f"➕ Queued **{track.title}** — `{self._duration(track.length)}`")
+                embed = discord.Embed(title="✅ Added to Queue", description=f"**[{track.title}]({getattr(track, 'uri', None) or '#'})**", color=discord.Color.green())
+                artwork = getattr(track, "artwork", None)
+                if artwork:
+                    embed.set_thumbnail(url=artwork)
+                embed.add_field(name="Duration", value=f"`{self._duration(track.length)}`", inline=True)
+                embed.set_footer(text="The current Now Playing panel will update when this track starts.")
+                await ctx.send(embed=embed)
             else:
                 self.requesters[ctx.guild.id] = ctx.author.id
                 await player.play(track)
-                await ctx.send(f"▶️ Playing **{track.title}** — `{track.author}`")
             await self._send_or_update_panel(ctx)
         except Exception as exc:
             log.exception("Lavalink playback failed")
@@ -192,7 +188,7 @@ class Music(commands.Cog):
         await player.pause(not player.paused)
         await self._update_panel(ctx.guild.id)
 
-    @commands.hybrid_command(name="skip", description="Skip the current track.")
+    @commands.hybrid_command(name="skip", aliases=["s"], description="Skip the current track.")
     async def skip(self, ctx):
         player = ctx.voice_client
         if not isinstance(player, wavelink.Player) or not player.current:
@@ -213,7 +209,7 @@ class Music(commands.Cog):
         await player.stop()
         await self._update_panel(ctx.guild.id)
 
-    @commands.hybrid_command(name="volume", description="Set music volume from 0 to 100.")
+    @commands.hybrid_command(name="volume", aliases=["vol"], description="Set music volume from 0 to 100.")
     async def volume(self, ctx, value: int):
         player = ctx.voice_client
         if not isinstance(player, wavelink.Player):
@@ -223,14 +219,14 @@ class Music(commands.Cog):
         await player.set_volume(max(0, min(100, value)))
         await self._update_panel(ctx.guild.id)
 
-    @commands.hybrid_command(name="nowplaying", description="Show the current Lavalink track.")
+    @commands.hybrid_command(name="nowplaying", aliases=["np"], description="Show the current Lavalink track.")
     async def nowplaying(self, ctx):
         player = ctx.voice_client
         if not isinstance(player, wavelink.Player) or not player.current:
             return await ctx.send("❌ Nothing is currently playing.")
         await self._send_or_update_panel(ctx)
 
-    @commands.hybrid_command(name="queue", description="Show the current music queue.")
+    @commands.hybrid_command(name="queue", aliases=["q"], description="Show the current music queue.")
     async def queue(self, ctx):
         queue = self.queues[ctx.guild.id]
         if not queue:
@@ -290,12 +286,15 @@ class MusicPanel(discord.ui.View):
         self.cog = cog
         self.guild_id = guild_id
         controls = [
-            ("Pause/Resume", "⏯️", "pause"), ("Skip", "⏭️", "skip"), ("Stop", "⏹️", "stop"),
-            ("Shuffle", "🔀", "shuffle"), ("Loop", "🔁", "loop"), ("Vol -", "🔉", "voldown"),
-            ("Vol +", "🔊", "volup"), ("Queue", "📜", "queue"),
+            ("Pause", "⏸️", "pause", discord.ButtonStyle.primary),
+            ("Skip", "⏭️", "skip", discord.ButtonStyle.primary),
+            ("Stop", "⏹️", "stop", discord.ButtonStyle.danger),
+            ("Shuffle", "🔀", "shuffle", discord.ButtonStyle.secondary),
+            ("Queue", "📜", "queue", discord.ButtonStyle.secondary),
+            ("Loop", "🔁", "loop", discord.ButtonStyle.primary),
         ]
-        for label, emoji, action in controls:
-            button = discord.ui.Button(label=label, emoji=emoji, style=discord.ButtonStyle.secondary, custom_id=f"lightcore:music:{guild_id}:{action}")
+        for index, (label, emoji, action, style) in enumerate(controls):
+            button = discord.ui.Button(label=label, emoji=emoji, style=style, custom_id=f"lightcore:music:{guild_id}:{action}", row=0 if index < 4 else 1)
             button.callback = self._callback(action)
             self.add_item(button)
 
@@ -321,10 +320,6 @@ class MusicPanel(discord.ui.View):
                 modes = ["off", "track", "queue"]
                 current = modes.index(self.cog.loop_modes[self.guild_id])
                 self.cog.loop_modes[self.guild_id] = modes[(current + 1) % len(modes)]
-            elif action == "voldown":
-                await player.set_volume(max(0, int(getattr(player, "volume", 100)) - 10))
-            elif action == "volup":
-                await player.set_volume(min(100, int(getattr(player, "volume", 100)) + 10))
             elif action == "queue":
                 queue = self.cog.queues[self.guild_id]
                 if not queue:
