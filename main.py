@@ -52,7 +52,8 @@ class LightCoreBot(commands.Bot):
 
 bot=LightCoreBot(command_prefix=PREFIX,intents=intents,case_insensitive=True,help_command=None,activity=discord.Game(name=".help | LightCore"))
 bot.started_at=time.monotonic()
-COGS=["moderation","automod","logging","leveling","tickets","ticket_plus","roles","currency","music","embeds","panels","welcome","giveaways","giveaway_plus","custom_commands","temp_voice","fun","games","serverinfo","admin","memberstats","applications","activitystats","status","core"]
+bot.started_at_wall=discord.utils.utcnow()
+COGS=["moderation","automod","logging","leveling","tickets","ticket_plus","roles","currency","music","embeds","panels","welcome","giveaways","giveaway_plus","custom_commands","temp_voice","fun","games","serverinfo","admin","memberstats","applications","activitystats","status","utility","core"]
 
 async def load_extensions():
     for name in COGS:
