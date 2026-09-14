@@ -12,7 +12,12 @@ class Utility(commands.Cog):
                 try:
                     msg=await ctx.send(embed=music._embed(ctx.guild.id),view=MusicPanelPlus(music,ctx.guild.id));music.panel_messages[ctx.guild.id]=msg
                 except discord.HTTPException:pass
-            music._send_or_update_panel=fresh_panel
+            async def fresh_update(guild_id,message=None):
+                message=message or music.panel_messages.get(guild_id)
+                if not message:return
+                try:await message.edit(embed=music._embed(guild_id),view=MusicPanelPlus(music,guild_id))
+                except (discord.NotFound,discord.HTTPException):music.panel_messages.pop(guild_id,None)
+            music._send_or_update_panel=fresh_panel;music._update_panel=fresh_update
             old=next((c for c in self.bot.walk_commands() if c.qualified_name=="nowplaying"),None)
             if old:
                 async def nowplaying(cog,ctx):
@@ -29,8 +34,7 @@ class Utility(commands.Cog):
                         member=ctx.guild.get_member(int(match.group(1))) if ctx.guild else None
                         if member:return member
                 return await original(converter,ctx,argument)
-            safe_convert._lightcore_ustats_safe=True
-            commands.MemberConverter.convert=safe_convert
+            safe_convert._lightcore_ustats_safe=True;commands.MemberConverter.convert=safe_convert
     @commands.hybrid_command(name="resume",description="Resume paused music.")
     async def resume(self,ctx):
         player=ctx.voice_client
