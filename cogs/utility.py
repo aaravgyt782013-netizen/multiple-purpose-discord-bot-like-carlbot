@@ -1,4 +1,5 @@
 import time
+import re
 import discord
 from discord.ext import commands
 BOT_VERSION="1.0.0"
@@ -19,6 +20,17 @@ class Utility(commands.Cog):
                     if not getattr(player,"current",None):return await ctx.send("❌ Nothing is currently playing.")
                     await fresh_panel(ctx)
                 old.callback=nowplaying
+        original=commands.MemberConverter.convert
+        if not getattr(original,"_lightcore_ustats_safe",False):
+            async def safe_convert(converter,ctx,argument):
+                if getattr(getattr(ctx,"command",None),"qualified_name","")=="ustats":
+                    match=re.search(r"<@!?(\d+)>",argument)
+                    if match:
+                        member=ctx.guild.get_member(int(match.group(1))) if ctx.guild else None
+                        if member:return member
+                return await original(converter,ctx,argument)
+            safe_convert._lightcore_ustats_safe=True
+            commands.MemberConverter.convert=safe_convert
     @commands.hybrid_command(name="resume",description="Resume paused music.")
     async def resume(self,ctx):
         player=ctx.voice_client
