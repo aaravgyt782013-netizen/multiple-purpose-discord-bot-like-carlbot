@@ -1,20 +1,5 @@
 {
-  "name": "aarav-all-in-one-discord-bot",
-  "version": "3.0.2",
-  "description": "LightCore original all-in-one Discord bot.",
-  "main": "src/start.js",
-  "scripts": {
-    "start": "node src/start.js"
-  },
-  "engines": {
-    "node": ">=20"
-  },
-  "dependencies": {
-    "@discordjs/opus": "^0.10.0",
-    "@discordjs/voice": "^0.18.0",
-    "@distube/youtube": "^1.0.4",
-    "discord.js": "^14.21.0",
-    "distube": "^5.2.3",
-    "dotenv": "^16.6.1"
-  }
+  "name": "lightcore-python-migration",
+  "private": true,
+  "description": "LightCore is now a Python discord.py bot. Node runtime is no longer used."
 }
