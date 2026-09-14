@@ -1,15 +1,25 @@
 import asyncio
 import logging
-from pathlib import Path
+import os
 
 import discord
 from discord.ext import commands
+from dotenv import load_dotenv
 
-from config import BOT_TOKEN, PREFIX, BRAND
 from database import init_db
 
-logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s %(name)s: %(message)s")
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CLIENT_ID = os.getenv("CLIENT_ID")
+PREFIX = "."
+BRAND = "LightCore"
 
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN is missing from .env")
+if not CLIENT_ID:
+    raise RuntimeError("CLIENT_ID is missing from .env")
+
+logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s %(name)s: %(message)s")
 intents = discord.Intents.all()
 
 bot = commands.Bot(
@@ -21,15 +31,16 @@ bot = commands.Bot(
 )
 
 COGS = [
-    "core", "moderation", "automod", "logging", "leveling", "tickets",
-    "roles", "currency", "music", "embeds", "panels", "welcome",
-    "giveaways", "custom_commands",
+    "moderation", "automod", "logging", "leveling", "tickets", "roles",
+    "currency", "music", "embeds", "panels", "welcome", "giveaways",
+    "custom_commands", "temp_voice", "fun", "games", "serverinfo",
+    "admin", "memberstats", "applications",
 ]
 
 
 @bot.event
 async def on_ready():
-    logging.info("%s online as %s (%s)", BRAND, bot.user, bot.user.id)
+    logging.info("%s online as %s (%s) • Client ID %s", BRAND, bot.user, bot.user.id, CLIENT_ID)
     try:
         synced = await bot.tree.sync()
         logging.info("Synced %d slash commands", len(synced))
