@@ -43,7 +43,8 @@ def init_db():
                 memberstats_channel INTEGER,
                 application_review_channel INTEGER,
                 tempvoice_category INTEGER,
-                tempvoice_join_channel INTEGER
+                tempvoice_join_channel INTEGER,
+                tempvoice_panel_channel INTEGER
             );
             CREATE TABLE IF NOT EXISTS warnings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -241,6 +242,10 @@ def init_db():
             """
         )
         _add_column(db, "giveaway_entries", "weight", "INTEGER NOT NULL DEFAULT 1")
+        _add_column(db, "temp_voice_channels", "locked", "INTEGER NOT NULL DEFAULT 0")
+        _add_column(db, "temp_voice_channels", "hidden", "INTEGER NOT NULL DEFAULT 0")
+        _add_column(db, "temp_voice_channels", "user_limit", "INTEGER NOT NULL DEFAULT 0")
+        _add_column(db, "temp_voice_channels", "panel_message_id", "INTEGER")
 
 
 def ensure_guild(guild_id):
@@ -254,7 +259,7 @@ _ALLOWED_SETTINGS = {
     'ticket_log_channel', 'level_enabled', 'currency_enabled', 'automod_enabled',
     'level_xp_min', 'level_xp_max', 'level_cooldown', 'level_message',
     'memberstats_enabled', 'memberstats_channel', 'application_review_channel',
-    'tempvoice_category', 'tempvoice_join_channel'
+    'tempvoice_category', 'tempvoice_join_channel', 'tempvoice_panel_channel'
 }
 
 
