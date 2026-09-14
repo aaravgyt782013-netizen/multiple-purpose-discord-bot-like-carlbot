@@ -18,10 +18,6 @@ CLIENT_ID = os.getenv("CLIENT_ID")
 LAVALINK_URI = os.getenv("LAVALINK_URI")
 LAVALINK_PASSWORD = os.getenv("LAVALINK_PASSWORD")
 LAVALINK_NAME = os.getenv("LAVALINK_NAME", "primary")
-SUPPORT_SERVER_URL = os.getenv("SUPPORT_SERVER_URL", "")
-PRIVACY_POLICY_URL = os.getenv("PRIVACY_POLICY_URL", "")
-TERMS_URL = os.getenv("TERMS_URL", "")
-INVITE_URL = os.getenv("INVITE_URL", "")
 PREFIX = "."
 BRAND = "LightCore"
 
@@ -30,10 +26,7 @@ if not BOT_TOKEN:
 if not CLIENT_ID:
     raise RuntimeError("CLIENT_ID is missing from .env")
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(asctime)s] %(levelname)s %(name)s: %(message)s",
-)
+logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("lightcore")
 intents = discord.Intents.all()
 
@@ -44,20 +37,13 @@ class LightCoreBot(commands.Bot):
         await connect_lavalink(self)
 
 
-bot = LightCoreBot(
-    command_prefix=PREFIX,
-    intents=intents,
-    case_insensitive=True,
-    help_command=None,
-    activity=discord.Game(name=".help | LightCore"),
-)
+bot = LightCoreBot(command_prefix=PREFIX, intents=intents, case_insensitive=True, help_command=None, activity=discord.Game(name=".help | LightCore"))
 bot.started_at = time.monotonic()
 
 COGS = [
-    "moderation", "automod", "logging", "leveling", "tickets", "roles",
-    "currency", "music", "embeds", "panels", "welcome", "giveaways",
-    "custom_commands", "temp_voice", "fun", "games", "serverinfo",
-    "admin", "memberstats", "applications", "advanced", "core",
+    "moderation", "automod", "logging", "leveling", "tickets", "roles", "currency", "music", "embeds", "panels",
+    "welcome", "giveaways", "custom_commands", "temp_voice", "fun", "games", "serverinfo", "admin", "memberstats",
+    "applications", "advanced_safe", "core",
 ]
 
 
@@ -76,12 +62,7 @@ async def connect_lavalink(client):
         log.error("Lavalink NOT configured: set LAVALINK_URI and LAVALINK_PASSWORD. Music commands will explain this to users.")
         return
     try:
-        node = wavelink.Node(
-            identifier=LAVALINK_NAME,
-            uri=LAVALINK_URI,
-            password=LAVALINK_PASSWORD,
-            retries=3,
-        )
+        node = wavelink.Node(identifier=LAVALINK_NAME, uri=LAVALINK_URI, password=LAVALINK_PASSWORD, retries=3)
         await wavelink.Pool.connect(nodes=[node], client=client)
         log.info("Lavalink connection requested: %s (%s)", LAVALINK_NAME, LAVALINK_URI)
     except Exception:
@@ -93,37 +74,28 @@ def validate_command_names():
     for command in bot.walk_commands():
         if isinstance(command, commands.Group):
             continue
-        name = command.qualified_name.lower()
-        prefix_names.setdefault(name, []).append(command.cog_name or "unknown")
-
-    duplicates = {name: owners for name, owners in prefix_names.items() if len(owners) > 1}
+        prefix_names.setdefault(command.qualified_name.lower(), []).append(command.cog_name or "unknown")
+    duplicates = {n: o for n, o in prefix_names.items() if len(o) > 1}
     if duplicates:
-        formatted = ", ".join(f"{name}: {owners}" for name, owners in duplicates.items())
-        raise RuntimeError(f"Command name collision detected: {formatted}")
+        raise RuntimeError("Command name collision detected: " + ", ".join(f"{n}: {o}" for n, o in duplicates.items()))
 
     slash_names = {}
     for command in bot.tree.walk_commands():
-        name = command.qualified_name.lower()
-        slash_names.setdefault(name, []).append(type(command).__name__)
-    slash_duplicates = {name: owners for name, owners in slash_names.items() if len(owners) > 1}
+        slash_names.setdefault(command.qualified_name.lower(), []).append(type(command).__name__)
+    slash_duplicates = {n: o for n, o in slash_names.items() if len(o) > 1}
     if slash_duplicates:
-        formatted = ", ".join(f"{name}: {owners}" for name, owners in slash_duplicates.items())
-        raise RuntimeError(f"Slash command collision detected: {formatted}")
-
-    log.info(
-        "Integration validation passed: %d prefix commands and %d slash commands registered without collisions.",
-        len(prefix_names),
-        len(slash_names),
-    )
+        raise RuntimeError("Slash command collision detected: " + ", ".join(f"{n}: {o}" for n, o in slash_duplicates.items()))
+    log.info("Integration validation passed: %d prefix commands and %d slash commands.", len(prefix_names), len(slash_names))
 
 
 @bot.event
 async def on_ready():
     log.info("%s online as %s (%s) • Client ID %s", BRAND, bot.user, bot.user.id, CLIENT_ID)
-    if shutil.which("ffmpeg"):
-        log.info("FFmpeg binary detected in PATH: %s (not used by Lavalink playback)", shutil.which("ffmpeg"))
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg:
+        log.info("FFmpeg detected in PATH: %s (Lavalink playback does not use local FFmpeg)", ffmpeg)
     else:
-        log.warning("FFmpeg binary not found in PATH. This does not block Lavalink playback, because audio decoding runs on the Lavalink server.")
+        log.warning("FFmpeg is not in PATH. This does not block Lavalink playback because decoding runs on Lavalink.")
     if getattr(bot, "_slash_synced", False):
         return
     try:
@@ -145,7 +117,7 @@ async def on_command_error(ctx, error):
         await ctx.send("❌ You do not have the required permission for this command.")
         return
     if isinstance(error, commands.BotMissingPermissions):
-        await ctx.send("❌ I am missing a Discord permission required for that action. Check my role/channel permissions.")
+        await ctx.send("❌ I am missing a Discord permission required for that action.")
         return
     if isinstance(error, commands.MissingRequiredArgument):
         await ctx.send(f"❌ Missing `{error.param.name}`. Use `.help {ctx.command.qualified_name}` for syntax.")
@@ -158,7 +130,7 @@ async def on_command_error(ctx, error):
         return
     log.exception("Unhandled command error in %s", getattr(ctx.command, "qualified_name", "unknown"), exc_info=error)
     try:
-        await ctx.send("⚠️ LightCore hit an internal error while processing that command. The error was logged; please try again later.")
+        await ctx.send("⚠️ LightCore hit an internal error. The error was logged; please try again later.")
     except Exception:
         log.exception("Could not send global error response")
 
