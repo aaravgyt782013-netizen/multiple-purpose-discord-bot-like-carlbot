@@ -43,7 +43,7 @@ bot.started_at = time.monotonic()
 COGS = [
     "moderation", "automod", "logging", "leveling", "tickets", "ticket_plus", "roles", "currency", "music", "embeds", "panels",
     "welcome", "giveaways", "giveaway_plus", "custom_commands", "temp_voice", "fun", "games", "serverinfo", "admin", "memberstats",
-    "applications", "advanced_safe", "core",
+    "applications", "advanced_safe", "activitystats", "core",
 ]
 
 
@@ -108,7 +108,7 @@ def validate_command_names():
         slash_names.setdefault(command.qualified_name.lower(), []).append(type(command).__name__)
     slash_duplicates = {n: o for n, o in slash_names.items() if len(o) > 1}
     if slash_duplicates:
-        raise RuntimeError("Slash command collision detected: " + ", ".join(f"{n}: {o}" for n, o in slash_duplicates.items()))
+        raise RuntimeError("Slash command name collision detected: " + ", ".join(f"{n}: {o}" for n, o in slash_duplicates.items()))
     log.info("Integration validation passed: %d prefix commands and %d slash commands.", len(prefix_names), len(slash_names))
 
 
@@ -132,16 +132,25 @@ async def on_ready():
 
 @bot.event
 async def on_command_error(ctx, error):
-    if isinstance(error, commands.CommandNotFound): return
-    if isinstance(error, commands.CommandOnCooldown): return await ctx.send(f"⏳ Slow down — try again in **{error.retry_after:.1f}s**.")
-    if isinstance(error, commands.MissingPermissions): return await ctx.send("❌ You do not have the required permission for this command.")
-    if isinstance(error, commands.BotMissingPermissions): return await ctx.send("❌ I am missing a Discord permission required for that action.")
-    if isinstance(error, commands.MissingRequiredArgument): return await ctx.send(f"❌ Missing `{error.param.name}`. Use `.help {ctx.command.qualified_name}` for syntax.")
-    if isinstance(error, commands.BadArgument): return await ctx.send("❌ One of the arguments could not be understood. Check the member/channel/number and try again.")
-    if isinstance(error, commands.CheckFailure): return await ctx.send("❌ This command cannot be used here or you do not meet its requirements.")
+    if isinstance(error, commands.CommandNotFound):
+        return
+    if isinstance(error, commands.CommandOnCooldown):
+        return await ctx.send(f"⏳ Slow down — try again in **{error.retry_after:.1f}s**.")
+    if isinstance(error, commands.MissingPermissions):
+        return await ctx.send("❌ You do not have the required permission for this command.")
+    if isinstance(error, commands.BotMissingPermissions):
+        return await ctx.send("❌ I am missing a Discord permission required for that action.")
+    if isinstance(error, commands.MissingRequiredArgument):
+        return await ctx.send(f"❌ Missing `{error.param.name}`. Use `.help {ctx.command.qualified_name}` for syntax.")
+    if isinstance(error, commands.BadArgument):
+        return await ctx.send("❌ One of the arguments could not be understood. Check the member/channel/number and try again.")
+    if isinstance(error, commands.CheckFailure):
+        return await ctx.send("❌ This command cannot be used here or you do not meet its requirements.")
     log.exception("Unhandled command error in %s", getattr(ctx.command, "qualified_name", "unknown"), exc_info=error)
-    try: await ctx.send("⚠️ LightCore hit an internal error. The error was logged; please try again later.")
-    except Exception: log.exception("Could not send global error response")
+    try:
+        await ctx.send("⚠️ LightCore hit an internal error. The error was logged; please try again later.")
+    except Exception:
+        log.exception("Could not send global error response")
 
 
 async def runner():
