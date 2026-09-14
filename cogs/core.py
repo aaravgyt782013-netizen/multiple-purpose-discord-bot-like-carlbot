@@ -13,14 +13,63 @@ CATEGORIES = [
     ("Fun", "🎉", {"Fun"}),
     ("Games", "🎮", {"Games"}),
     ("Server", "🖥️", {"ServerInfo", "MemberStats", "Welcome", "Logging"}),
+    ("Activity", "📊", {"ActivityStats", "Status"}),
     ("Giveaways", "🎁", {"Giveaways", "GiveawayPlus"}),
     ("Applications", "📝", {"ApplicationCog"}),
     ("Custom Commands", "⚙️", {"CustomCommands"}),
     ("Configuration", "🔧", {"Admin", "Panels", "Embeds"}),
     ("Temp Voice", "🔊", {"TempVoice"}),
+    ("Utility", "🧰", {"Utility"}),
     ("Core", "💠", {"Core"}),
 ]
 CATEGORY_MAP = {name: (emoji, cogs) for name, emoji, cogs in CATEGORIES}
+
+COMMAND_PERMISSIONS = {
+    "ban": "Ban Members",
+    "kick": "Kick Members",
+    "mute": "Moderate Members",
+    "warn": "Moderate Members",
+    "purge": "Manage Messages",
+    "warnings": "Moderate Members",
+    "automod": "Manage Server",
+    "setlog": "Manage Server",
+    "levelconfig": "Manage Server",
+    "levelconfig rate": "Manage Server",
+    "levelconfig cooldown": "Manage Server",
+    "levelconfig message": "Manage Server",
+    "levelconfig reward": "Manage Server",
+    "levelconfig enable": "Manage Server",
+    "ticketsetup": "Manage Channels",
+    "ticketpanel": "Manage Channels",
+    "setticketcategory": "Manage Server",
+    "setticketlog": "Manage Server",
+    "close": "Manage Channels",
+    "ticketcategory": "Manage Channels",
+    "selfrole": "Manage Roles",
+    "shopadd": "Manage Server",
+    "shopremove": "Manage Server",
+    "giveaway": "Manage Server",
+    "giveawaybonus": "Manage Server",
+    "giveawaypick": "Manage Server",
+    "customadd": "Manage Server",
+    "customremove": "Manage Server",
+    "embed": "Manage Messages",
+    "announce": "Manage Messages",
+    "panel": "Manage Server",
+    "setwelcome": "Manage Server",
+    "setgoodbye": "Manage Server",
+    "tempvoice": "Manage Channels",
+    "tempvoice setup": "Manage Channels",
+    "tempvoice_disable": "Manage Channels",
+    "adminpanel": "Manage Server",
+    "memberstats": "Manage Server",
+    "growth": "Manage Server",
+    "retention": "Manage Server",
+    "applicationcreate": "Manage Server",
+    "applicationpanel": "Manage Server",
+    "applicationreviewchannel": "Manage Server",
+    "applications": "Manage Server",
+}
 
 
 def logo_url(bot):
@@ -62,6 +111,11 @@ class HelpView(discord.ui.View):
         aliases = getattr(command, "aliases", [])
         return f"{base}  •  aliases: {', '.join('.' + a for a in aliases)}" if aliases else base
 
+    @staticmethod
+    def permission_note(command):
+        permission = COMMAND_PERMISSIONS.get(command.qualified_name.lower())
+        return f" • Requires: **{permission}**" if permission else ""
+
     def brand(self, embed):
         url = logo_url(self.bot)
         if url:
@@ -81,7 +135,8 @@ class HelpView(discord.ui.View):
         emoji = CATEGORY_MAP[self.category][0]; entries = self.entries(); pages = max(1, math.ceil(len(entries) / 8)); self.page = max(0, min(self.page, pages - 1))
         current = entries[self.page * 8:(self.page + 1) * 8]
         embed = discord.Embed(title=f"{emoji} LightCore • {self.category}", color=discord.Color.blurple()); self.brand(embed)
-        for command in current: embed.add_field(name=f"`{self.syntax(command)}`", value=(command.description or "No description provided.").replace("\n", " "), inline=False)
+        for command in current:
+            embed.add_field(name=f"`{self.syntax(command)}`", value=(command.description or "No description provided.").replace("\n", " ") + self.permission_note(command), inline=False)
         if not current: embed.description = "No commands are registered in this category yet."
         embed.set_footer(text=f"Page {self.page + 1}/{pages} • LightCore")
         return embed
