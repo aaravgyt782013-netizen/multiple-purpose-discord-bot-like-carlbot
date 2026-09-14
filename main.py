@@ -43,7 +43,7 @@ bot.started_at = time.monotonic()
 COGS = [
     "moderation", "automod", "logging", "leveling", "tickets", "ticket_plus", "roles", "currency", "music", "embeds", "panels",
     "welcome", "giveaways", "giveaway_plus", "custom_commands", "temp_voice", "fun", "games", "serverinfo", "admin", "memberstats",
-    "applications", "advanced_safe", "activitystats", "core",
+    "applications", "advanced_safe", "activitystats", "status", "core",
 ]
 
 
