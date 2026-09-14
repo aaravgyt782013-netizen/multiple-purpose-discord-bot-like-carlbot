@@ -15,9 +15,9 @@ from health_server import start_health_server
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CLIENT_ID = os.getenv("CLIENT_ID")
-LAVALINK_URI = os.getenv("LAVALINK_URI")
-LAVALINK_PASSWORD = os.getenv("LAVALINK_PASSWORD")
-LAVALINK_NAME = os.getenv("LAVALINK_NAME", "primary")
+LAVALINK_URI = os.getenv("LAVALINK_URI", "").strip()
+LAVALINK_PASSWORD = os.getenv("LAVALINK_PASSWORD", "").strip()
+LAVALINK_NAME = os.getenv("LAVALINK_NAME", "primary").strip() or "primary"
 PREFIX = "."
 BRAND = "LightCore"
 
@@ -57,16 +57,41 @@ async def load_extensions():
             raise
 
 
+def _lavalink_env_status():
+    return bool(LAVALINK_URI), bool(LAVALINK_PASSWORD), bool(LAVALINK_NAME)
+
+
 async def connect_lavalink(client):
-    if not LAVALINK_URI or not LAVALINK_PASSWORD:
-        log.error("Lavalink NOT configured: set LAVALINK_URI and LAVALINK_PASSWORD. Music commands will explain this to users.")
+    uri_ok, password_ok, name_ok = _lavalink_env_status()
+    log.info(
+        "Lavalink env check: LAVALINK_URI=%s LAVALINK_PASSWORD=%s LAVALINK_NAME=%s",
+        "SET" if uri_ok else "MISSING",
+        "SET" if password_ok else "MISSING",
+        "SET" if name_ok else "MISSING",
+    )
+    if not uri_ok or not password_ok or not name_ok:
+        log.error("Lavalink NOT configured: all three Lavalink env vars must be non-empty.")
         return
-    try:
-        node = wavelink.Node(identifier=LAVALINK_NAME, uri=LAVALINK_URI, password=LAVALINK_PASSWORD, retries=3)
-        await wavelink.Pool.connect(nodes=[node], client=client)
-        log.info("Lavalink connection requested: %s (%s)", LAVALINK_NAME, LAVALINK_URI)
-    except Exception:
-        log.exception("Lavalink FAILED to connect. Check URI, password, TLS, firewall, and that the Lavalink v4 server is online.")
+
+    delays = (2, 5, 10)
+    for attempt in range(1, 4):
+        try:
+            node = wavelink.Node(
+                identifier=LAVALINK_NAME,
+                uri=LAVALINK_URI,
+                password=LAVALINK_PASSWORD,
+                retries=3,
+            )
+            await wavelink.Pool.connect(nodes=[node], client=client)
+            log.info("Lavalink connection attempt %d/3 submitted: %s (%s)", attempt, LAVALINK_NAME, LAVALINK_URI)
+            return
+        except Exception as exc:
+            log.exception("Lavalink connection attempt %d/3 failed: %s", attempt, exc)
+            if attempt < 3:
+                delay = delays[attempt - 1]
+                log.warning("Retrying Lavalink connection in %ss...", delay)
+                await asyncio.sleep(delay)
+    log.error("Lavalink FAILED after 3 startup attempts. Music commands will report the node as unavailable.")
 
 
 def validate_command_names():
