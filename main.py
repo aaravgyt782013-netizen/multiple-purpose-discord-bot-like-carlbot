@@ -34,6 +34,7 @@ intents = discord.Intents.all()
 class LightCoreBot(commands.Bot):
     async def setup_hook(self):
         await load_extensions()
+        validate_command_names()
         await connect_lavalink(self)
 
 
@@ -43,7 +44,7 @@ bot.started_at = time.monotonic()
 COGS = [
     "moderation", "automod", "logging", "leveling", "tickets", "ticket_plus", "roles", "currency", "music", "embeds", "panels",
     "welcome", "giveaways", "giveaway_plus", "custom_commands", "temp_voice", "fun", "games", "serverinfo", "admin", "memberstats",
-    "applications", "advanced_safe", "activitystats", "status", "core",
+    "applications", "activitystats", "status", "core",
 ]
 
 
@@ -100,9 +101,11 @@ def validate_command_names():
         if isinstance(command, commands.Group):
             continue
         prefix_names.setdefault(command.qualified_name.lower(), []).append(command.cog_name or "unknown")
+        for alias in getattr(command, "aliases", []):
+            prefix_names.setdefault(alias.lower(), []).append(f"{command.cog_name or 'unknown'} (alias of {command.qualified_name})")
     duplicates = {n: o for n, o in prefix_names.items() if len(o) > 1}
     if duplicates:
-        raise RuntimeError("Command name collision detected: " + ", ".join(f"{n}: {o}" for n, o in duplicates.items()))
+        raise RuntimeError("Command name/alias collision detected: " + ", ".join(f"{n}: {o}" for n, o in duplicates.items()))
     slash_names = {}
     for command in bot.tree.walk_commands():
         slash_names.setdefault(command.qualified_name.lower(), []).append(type(command).__name__)
