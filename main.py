@@ -3,6 +3,8 @@ import logging
 import os
 import shutil
 import time
+from urllib.parse import urlparse
+
 import discord
 import wavelink
 from discord.ext import commands
@@ -11,15 +13,45 @@ from database import init_db
 from health_server import start_health_server
 
 load_dotenv()
-BOT_TOKEN=os.getenv("BOT_TOKEN");CLIENT_ID=os.getenv("CLIENT_ID");LAVALINK_URI=os.getenv("LAVALINK_URI","").strip();LAVALINK_PASSWORD=os.getenv("LAVALINK_PASSWORD","").strip();LAVALINK_NAME=os.getenv("LAVALINK_NAME","primary").strip() or "primary";PREFIX=".";BRAND="LightCore"
+BOT_TOKEN=os.getenv("BOT_TOKEN")
+CLIENT_ID=os.getenv("CLIENT_ID")
+LAVALINK_URI=os.getenv("LAVALINK_URI","").strip()
+LAVALINK_PASSWORD=os.getenv("LAVALINK_PASSWORD","").strip()
+LAVALINK_NAME=os.getenv("LAVALINK_NAME","primary").strip() or "primary"
+PREFIX="."
+BRAND="LightCore"
 if not BOT_TOKEN:raise RuntimeError("BOT_TOKEN is missing from .env")
 if not CLIENT_ID:raise RuntimeError("CLIENT_ID is missing from .env")
-logging.basicConfig(level=logging.INFO,format="[%(asctime)s] %(levelname)s %(name)s: %(message)s");log=logging.getLogger("lightcore");intents=discord.Intents.all()
+logging.basicConfig(level=logging.INFO,format="[%(asctime)s] %(levelname)s %(name)s: %(message)s")
+log=logging.getLogger("lightcore")
+intents=discord.Intents.all()
 
 class LightCoreBot(commands.Bot):
-    async def setup_hook(self):await load_extensions();validate_command_names();await connect_lavalink(self)
+    async def setup_hook(self):
+        await load_extensions()
+        validate_command_names()
+        await connect_lavalink(self)
 
-bot=LightCoreBot(command_prefix=PREFIX,intents=intents,case_insensitive=True,help_command=None,activity=discord.Game(name=".help | LightCore"));bot.started_at=time.monotonic()
+    async def on_wavelink_node_ready(self,payload):
+        node=getattr(payload,"node",None)
+        log.info(
+            "Lavalink NODE READY event fired: node=%r uri=%r connected=%s",
+            getattr(node,"identifier",LAVALINK_NAME),
+            getattr(node,"uri",LAVALINK_URI),
+            getattr(node,"is_connected",None),
+        )
+
+    async def on_wavelink_node_closed(self,payload):
+        node=getattr(payload,"node",None)
+        log.warning(
+            "Lavalink NODE CLOSED event fired: node=%r reason=%r code=%r",
+            getattr(node,"identifier",LAVALINK_NAME),
+            getattr(payload,"reason",None),
+            getattr(payload,"code",None),
+        )
+
+bot=LightCoreBot(command_prefix=PREFIX,intents=intents,case_insensitive=True,help_command=None,activity=discord.Game(name=".help | LightCore"))
+bot.started_at=time.monotonic()
 COGS=["moderation","automod","logging","leveling","tickets","ticket_plus","roles","currency","music","embeds","panels","welcome","giveaways","giveaway_plus","custom_commands","temp_voice","fun","games","serverinfo","admin","memberstats","applications","activitystats","status","core"]
 
 async def load_extensions():
@@ -28,23 +60,58 @@ async def load_extensions():
         except Exception:log.exception("Failed to load cog: %s",name);raise
 
 def _lavalink_env_status():return bool(LAVALINK_URI),bool(LAVALINK_PASSWORD),bool(LAVALINK_NAME)
+
+async def raw_lavalink_connectivity_check():
+    """Check DNS/TCP reachability without performing Lavalink authentication."""
+    parsed=urlparse(LAVALINK_URI)
+    host=parsed.hostname
+    port=parsed.port or (443 if parsed.scheme=="https" else 80)
+    if not host:
+        log.error("Lavalink RAW CONNECTIVITY: could not parse host from LAVALINK_URI=%r",LAVALINK_URI)
+        return False
+    started=time.monotonic()
+    try:
+        reader,writer=await asyncio.wait_for(asyncio.open_connection(host,port),timeout=10)
+        elapsed=time.monotonic()-started
+        log.info("Lavalink RAW TCP CONNECTIVITY OK: host=%r port=%d elapsed=%.2fs",host,port,elapsed)
+        writer.close()
+        await writer.wait_closed()
+        return True
+    except asyncio.TimeoutError:
+        log.error("Lavalink RAW TCP CONNECTIVITY TIMED OUT after 10s: host=%r port=%d",host,port)
+    except Exception as exc:
+        log.error("Lavalink RAW TCP CONNECTIVITY FAILED: host=%r port=%d error=%s: %s",host,port,type(exc).__name__,exc,exc_info=True)
+    return False
+
 async def connect_lavalink(client):
     uri_ok,password_ok,name_ok=_lavalink_env_status()
     log.info("Lavalink config: LAVALINK_URI=%r (non-empty=%s); LAVALINK_PASSWORD=%s (non-empty); LAVALINK_NAME=%r (non-empty=%s)",LAVALINK_URI,uri_ok,"SET" if password_ok else "MISSING",LAVALINK_NAME,name_ok)
     if not uri_ok or not password_ok or not name_ok:
         log.error("Lavalink startup connection skipped: one or more required env vars are empty.")
         return
+
+    await raw_lavalink_connectivity_check()
+
     for attempt,delay in enumerate((2,5,10),1):
         try:
             node=wavelink.Node(identifier=LAVALINK_NAME,uri=LAVALINK_URI,password=LAVALINK_PASSWORD,retries=3)
-            await wavelink.Pool.connect(nodes=[node],client=client)
-            log.info("Lavalink connection attempt %d/3 submitted successfully: node=%r uri=%r",attempt,LAVALINK_NAME,LAVALINK_URI)
+            log.info("Lavalink connection attempt %d/3: calling and awaiting wavelink.Pool.connect() with 15s hard timeout...",attempt)
+            started=time.monotonic()
+            await asyncio.wait_for(
+                wavelink.Pool.connect(nodes=[node],client=client),
+                timeout=15,
+            )
+            elapsed=time.monotonic()-started
+            log.info("Lavalink Pool.connect() RETURNED on attempt %d/3 after %.2fs; node=%r uri=%r",attempt,elapsed,LAVALINK_NAME,LAVALINK_URI)
+            log.info("Lavalink NODE READY is still required; waiting for Wavelink node-ready event asynchronously.")
             return
+        except asyncio.TimeoutError:
+            log.error("Lavalink connection TIMED OUT after 15s on attempt %d/3; wavelink.Pool.connect() did not return.",attempt)
         except Exception as exc:
             log.exception("Lavalink connection attempt %d/3 failed with %s: %s",attempt,type(exc).__name__,exc)
-            if attempt<3:
-                log.warning("Retrying Lavalink connection in %ss...",delay)
-                await asyncio.sleep(delay)
+        if attempt<3:
+            log.warning("Retrying Lavalink connection in %ss...",delay)
+            await asyncio.sleep(delay)
     log.error("Lavalink FAILED after 3 startup attempts; /play will remain unavailable until a node connects.")
 
 def validate_command_names():
