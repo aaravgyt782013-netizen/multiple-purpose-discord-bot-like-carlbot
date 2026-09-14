@@ -1,7 +1,9 @@
+import logging
 import sqlite3
 from pathlib import Path
 
 DB_PATH = Path("lightcore.db")
+logger = logging.getLogger("lightcore.database")
 
 
 def connect():
@@ -17,8 +19,23 @@ def _add_column(db, table, column, definition):
         db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
+def _table_exists(db, table):
+    return db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone() is not None
+
+
 def init_db():
     with connect() as db:
+        migration_tables = [
+            "guild_settings", "warnings", "moderation_logs", "event_logs", "xp", "level_rewards",
+            "balances", "custom_commands", "shop_items", "role_panels", "ticket_systems", "ticket_types",
+            "ticket_instances", "ticket_participants", "ticket_transcript_v2", "app_forms_v2", "app_questions_v2",
+            "app_submissions_v2", "app_panels_v2", "giveaway_v2", "giveaway_entries_v2", "giveaway_bonus_roles_v2",
+            "temp_voice_channels", "pets", "reward_claims", "xp_boosters", "invite_cache", "activity_stats",
+            "activity_buckets", "activity_voice_sessions", "marriages", "applications", "application_submissions",
+            "application_panels", "giveaways", "giveaway_entries",
+        ]
+        before = {table: _table_exists(db, table) for table in migration_tables}
+
         db.executescript("""
         CREATE TABLE IF NOT EXISTS guild_settings (guild_id INTEGER PRIMARY KEY,prefix TEXT NOT NULL DEFAULT '.',log_channel INTEGER,welcome_channel INTEGER,goodbye_channel INTEGER,welcome_message TEXT,goodbye_message TEXT,muted_role INTEGER,ticket_category INTEGER,ticket_log_channel INTEGER,ticket_config TEXT,level_enabled INTEGER NOT NULL DEFAULT 1,currency_enabled INTEGER NOT NULL DEFAULT 1,automod_enabled INTEGER NOT NULL DEFAULT 0,level_xp_min INTEGER NOT NULL DEFAULT 15,level_xp_max INTEGER NOT NULL DEFAULT 25,level_cooldown INTEGER NOT NULL DEFAULT 60,level_message TEXT DEFAULT 'GG {user}! You reached level {level}.',memberstats_enabled INTEGER NOT NULL DEFAULT 1,memberstats_channel INTEGER,application_review_channel INTEGER,tempvoice_category INTEGER,tempvoice_join_channel INTEGER,tempvoice_panel_channel INTEGER);
         CREATE TABLE IF NOT EXISTS warnings (id INTEGER PRIMARY KEY AUTOINCREMENT,guild_id INTEGER NOT NULL,user_id INTEGER NOT NULL,moderator_id INTEGER NOT NULL,reason TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
@@ -51,10 +68,24 @@ def init_db():
         CREATE TABLE IF NOT EXISTS activity_buckets (guild_id INTEGER NOT NULL,user_id INTEGER NOT NULL,bucket_start TEXT NOT NULL,message_count INTEGER NOT NULL DEFAULT 0,voice_seconds INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(guild_id,user_id,bucket_start));
         CREATE TABLE IF NOT EXISTS activity_voice_sessions (guild_id INTEGER NOT NULL,user_id INTEGER NOT NULL,joined_at TEXT NOT NULL,channel_id INTEGER,PRIMARY KEY(guild_id,user_id));
         CREATE TABLE IF NOT EXISTS marriages (guild_id INTEGER NOT NULL,user_id INTEGER NOT NULL,partner_id INTEGER NOT NULL,married_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(guild_id,user_id),UNIQUE(guild_id,partner_id));
+
+        -- Compatibility tables used by the currently loaded application cog.
+        CREATE TABLE IF NOT EXISTS applications (id INTEGER PRIMARY KEY AUTOINCREMENT,guild_id INTEGER NOT NULL,form_name TEXT NOT NULL,questions TEXT NOT NULL,review_channel INTEGER,enabled INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS application_submissions (id INTEGER PRIMARY KEY AUTOINCREMENT,application_id INTEGER NOT NULL,guild_id INTEGER NOT NULL,user_id INTEGER NOT NULL,answers TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',reviewer_id INTEGER,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS application_panels (id INTEGER PRIMARY KEY AUTOINCREMENT,application_id INTEGER NOT NULL,guild_id INTEGER NOT NULL,channel_id INTEGER NOT NULL,message_id INTEGER NOT NULL UNIQUE);
+
+        -- Compatibility tables used by the currently loaded giveaway cog.
+        CREATE TABLE IF NOT EXISTS giveaways (id INTEGER PRIMARY KEY AUTOINCREMENT,guild_id INTEGER NOT NULL,channel_id INTEGER NOT NULL,message_id INTEGER NOT NULL UNIQUE,prize TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'active',winner_id INTEGER,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,ended_at TEXT);
+        CREATE TABLE IF NOT EXISTS giveaway_entries (giveaway_id INTEGER NOT NULL,user_id INTEGER NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(giveaway_id,user_id));
+
         CREATE INDEX IF NOT EXISTS idx_tickets_v2_guild_status ON ticket_instances(guild_id,status);
         CREATE INDEX IF NOT EXISTS idx_apps_v2_form_status ON app_submissions_v2(form_id,status);
         CREATE INDEX IF NOT EXISTS idx_giveaways_v2_status ON giveaway_v2(guild_id,status);
+        CREATE INDEX IF NOT EXISTS idx_applications_guild ON applications(guild_id);
+        CREATE INDEX IF NOT EXISTS idx_application_submissions_status ON application_submissions(application_id,status);
+        CREATE INDEX IF NOT EXISTS idx_giveaways_status ON giveaways(guild_id,status);
         """)
+
         _add_column(db,"ticket_types","log_channel_id","INTEGER")
         _add_column(db,"ticket_types","transcript_channel_id","INTEGER")
         _add_column(db,"ticket_types","discord_category_id","INTEGER")
@@ -65,6 +96,15 @@ def init_db():
         _add_column(db,"pets","xp","INTEGER NOT NULL DEFAULT 0")
         _add_column(db,"shop_items","role_id","INTEGER")
         _add_column(db,"shop_items","stock","INTEGER NOT NULL DEFAULT -1")
+
+        after = {table: _table_exists(db, table) for table in migration_tables}
+        created = [table for table in migration_tables if not before[table] and after[table]]
+        verified = [table for table in migration_tables if before[table] and after[table]]
+        logger.info("Database migration check: %d required tables verified, %d tables created.", len(verified), len(created))
+        if created:
+            logger.info("Database tables created: %s", ", ".join(created))
+        else:
+            logger.info("Database table creation: none needed; all required tables already existed.")
 
 
 def ensure_guild(guild_id):
