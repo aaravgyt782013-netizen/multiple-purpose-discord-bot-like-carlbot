@@ -83,3 +83,5 @@ jobs:
               assert tuple(row)==(3,3661),row;database.DB_PATH=old;print('Activity persistence test passed.')
           asyncio.run(test())
           PY
+      - name: Verify ustats trailing-argument regression
+        run: python tests/ustats_regression.py
