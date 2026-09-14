@@ -18,7 +18,10 @@ class TempVoice(commands.Cog):
             ).fetchall()
         stale = []
         for row in rows:
-            channel = self.bot.get_channel(row["channel_id"])
+            try:
+                channel = self.bot.get_channel(row["channel_id"]) or await self.bot.fetch_channel(row["channel_id"])
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                channel = None
             if isinstance(channel, discord.VoiceChannel):
                 self.owners[channel.id] = row["owner_id"]
                 self.bot.add_view(TempVoicePanel(self, channel.id, row["owner_id"]))
