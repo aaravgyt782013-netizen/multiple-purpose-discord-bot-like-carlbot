@@ -3,7 +3,7 @@ const {EmbedBuilder,ActionRowBuilder,StringSelectMenuBuilder,ButtonBuilder,Butto
 module.exports=function(client,prefix='.'){
  const P=prefix||'.';
  const groups={
-  home:['help','ping','uptime','botinfo','invite','support','serverinfo','membercount','userinfo','avatar','roleinfo','channelinfo','servericon','permissions','config','prefix','enable','disable'],
+  home:['help','ping','uptime','botinfo','invite','support','serverinfo','membercount','userinfo','avatar','roleinfo','channelinfo','servericon','permissions','config','prefix','enable','disable','botstats'],
   moderation:['ban','clearwarnings','kick','lock','lockdown','massrole','nick','purge','slowmode','softban','timeout','unban','unlock','unlockdown','unwarn','untimeout','warn','warnings'],
   security:['antiraid','antinuke','automod','filter','filter-add','filter-remove','honeypot','security','verify'],
   logging:['logdisable','logevents','logreset','logsettings','logsetup','logtest','setlog'],
@@ -28,10 +28,11 @@ module.exports=function(client,prefix='.'){
   voice:['tempvoice','voice'],
   configuration:['config','disable','emoji','emoji-list','enable','permissions','perm','prefix'],
   utility:['channel','channelinfo','membercount','roleinfo','servericon','serverinfo','userinfo','userinfo-all'],
-  reminders:['remind','reminders']
+  reminders:['remind','reminders'],
+  pro:['aliases','cooldowns','permissions','uptime','botstats','deletechannel','delchannel','delch','up','si','ui','av','np','q','rm','vc','mc']
  };
  const names={
-  home:'🏠 Home',moderation:'🛡️ Moderation',security:'🔐 Security',logging:'📋 Logging',leveling:'📈 Leveling',economy:'💰 Economy',music:'🎧 Music',tickets:'🎫 Tickets & Applications',giveaways:'🎉 Giveaways',fun:'🎭 Fun',counters:'📊 Counters',memberstats:'📈 Member & User Stats',notifications:'🔔 Notifications',invites:'🔗 Invites',announcements:'📢 Announcements',roles:'🎭 Roles',channels:'📁 Channels',welcome:'👋 Welcome',autoresponder:'🤖 Auto Responder',custom:'⚙️ Custom Commands',afk:'💤 AFK',stars:'⭐ Stars',voice:'🔊 Voice',configuration:'✨ Configuration',utility:'🛠️ Utility',reminders:'⏰ Reminders'
+  home:'🏠 Home',moderation:'🛡️ Moderation',security:'🔐 Security',logging:'📋 Logging',leveling:'📈 Leveling',economy:'💰 Economy',music:'🎧 Music',tickets:'🎫 Tickets & Applications',giveaways:'🎉 Giveaways',fun:'🎭 Fun',counters:'📊 Counters',memberstats:'📈 Member & User Stats',notifications:'🔔 Notifications',invites:'🔗 Invites',announcements:'📢 Announcements',roles:'🎭 Roles',channels:'📁 Channels',welcome:'👋 Welcome',autoresponder:'🤖 Auto Responder',custom:'⚙️ Custom Commands',afk:'💤 AFK',stars:'⭐ Stars',voice:'🔊 Voice',configuration:'✨ Configuration',utility:'🛠️ Utility',reminders:'⏰ Reminders',pro:'🚀 Pro & System'
  };
  const order=Object.keys(groups);
  const icons=['✦','◆','◇','✧','●','◈'];
@@ -42,15 +43,16 @@ module.exports=function(client,prefix='.'){
  for(const k of order)groups[k]=normalize(groups[k]);
  const total=order.reduce((n,k)=>n+groups[k].length,0);
  const footer={text:'LIGHTCORE  •  HELP CENTER'};
- const menu=()=>new StringSelectMenuBuilder().setCustomId('lc_help_category').setPlaceholder('✦  Browse command categories').addOptions(order.slice(0,25).map(k=>({label:cleanName(k).slice(0,100),value:k,emoji:names[k].split(' ')[0],description:`${groups[k].length} command${groups[k].length===1?'':'s'}`})));
+ const makeMenu=(id,list)=>new StringSelectMenuBuilder().setCustomId(id).setPlaceholder('✦  Browse command categories').addOptions(list.map(k=>({label:cleanName(k).slice(0,100),value:k,emoji:names[k].split(' ')[0],description:`${groups[k].length} command${groups[k].length===1?'':'s'}`})));
+ const menuRows=()=>{const mid=Math.ceil(order.length/2);return [new ActionRowBuilder().addComponents(makeMenu('lc_help_category_1',order.slice(0,mid))),new ActionRowBuilder().addComponents(makeMenu('lc_help_category_2',order.slice(mid)))];};
 
  function home(){
   const body=order.map((k,i)=>`${icons[i%icons.length]} **${cleanName(k)}**  ·  \`${groups[k].length}\` command${groups[k].length===1?'':'s'}\n   └ \`${P}help ${k}\``).join('\n');
   return {embeds:[new EmbedBuilder()
    .setAuthor({name:'LIGHTCORE  •  COMMAND CENTER',iconURL:client.user?.displayAvatarURL?.({size:64})})
    .setTitle('✦ Help Center')
-   .setDescription(`**Your all-in-one Discord command center.**\n\n> **Prefix**  \`${P}\`\n> **Categories**  \`${order.length}\`\n> **Commands indexed**  \`${total}\`\n\n${body}\n\n**HOW TO USE**\n> Select a category below. Every command is shown **one per line**, numbered and sorted in a consistent order.\n> Large categories use pages so no commands are hidden.`)
-   .setColor(color()).setFooter(footer).setTimestamp()],components:[new ActionRowBuilder().addComponents(menu())]};
+   .setDescription(`**Your all-in-one Discord command center.**\n\n> **Prefix**  \`${P}\`\n> **Categories**  \`${order.length}\`\n> **Commands indexed**  \`${total}\`\n\n${body}\n\n**HOW TO USE**\n> Select a category below. Every indexed command is shown one per line, sorted consistently.\n> Large categories use pages so no commands are hidden.`)
+   .setColor(color()).setFooter(footer).setTimestamp()],components:menuRows()};
  }
 
  function category(cat,page=0){
@@ -62,7 +64,7 @@ module.exports=function(client,prefix='.'){
   const start=page*pageSize;
   const current=items.slice(start,start+pageSize);
   const list=current.map((x,i)=>`${String(start+i+1).padStart(2,'0')}  ${icons[(start+i)%icons.length]}  \`${P}${x}\``).join('\n');
-  const rows=[new ActionRowBuilder().addComponents(menu())];
+  const rows=[...menuRows()];
   if(pages>1)rows.push(new ActionRowBuilder().addComponents(
    new ButtonBuilder().setCustomId(`lc_help_prev:${cat}:${page}`).setLabel('Previous').setEmoji('◀️').setStyle(ButtonStyle.Secondary).setDisabled(page===0),
    new ButtonBuilder().setCustomId('lc_help_home').setLabel('Home').setEmoji('🏠').setStyle(ButtonStyle.Primary),
@@ -71,7 +73,7 @@ module.exports=function(client,prefix='.'){
   return {embeds:[new EmbedBuilder()
    .setAuthor({name:`LIGHTCORE  •  ${cleanName(cat).toUpperCase()}`,iconURL:client.user?.displayAvatarURL?.({size:64})})
    .setTitle(`${names[cat]}  ›  Command Index`)
-   .setDescription(`**${items.length} commands**  ·  **Page ${page+1}/${pages}**\n\n${list}\n\n> ✦ One command per line\n> ✦ Alphabetically ordered for quick scanning\n> ✦ Use the dropdown to switch categories`)
+   .setDescription(`**${items.length} commands**  ·  **Page ${page+1}/${pages}**\n\n${list}\n\n> ✦ One command per line\n> ✦ Alphabetically ordered for quick scanning\n> ✦ Use either category menu to switch sections`)
    .setColor(color()).setFooter({text:'LIGHTCORE  •  COMMAND INDEX'}).setTimestamp()],components:rows};
  }
 
@@ -86,31 +88,31 @@ module.exports=function(client,prefix='.'){
    if(m.author.bot||!m.guild)return;
    if(!m.content.startsWith(P))return old(m);
    const a=m.content.slice(P.length).trim().split(/\s+/),c=(a.shift()||'').toLowerCase();
-   if(c==='help'||c==='h'){await m.reply(help((a[0]||'home').toLowerCase(),Number(a[1])||0));return}
+   if(c==='help'||c==='h'||c==='?'){await m.reply(help((a[0]||'home').toLowerCase(),Number(a[1])||0));return}
    return old(m);
   }catch(e){console.error('[HELP ORDERED]',e)}});
  }
 
  client.once('ready',async()=>{
   try{
-   const command={name:'help',description:'Open the LightCore Help Center',options:[
-    {name:'category',description:'Choose a command category',type:ApplicationCommandOptionType.String,required:false,choices:order.slice(0,25).map(k=>({name:cleanName(k).slice(0,100),value:k}))},
+   const command={name:'help',description:'Open the complete LightCore Help Center',options:[
+    {name:'category',description:'Category name, for example moderation or music',type:ApplicationCommandOptionType.String,required:false},
     {name:'page',description:'Page number for the selected category',type:ApplicationCommandOptionType.Integer,required:false,min_value:1,max_value:50}
    ]};
    const commands=await client.application.commands.fetch();
    const existing=commands.find(c=>c.name==='help');
    if(existing)await existing.edit(command);else await client.application.commands.create(command);
-   console.log('[SLASH] Registered /help without replacing existing application commands');
+   console.log('[SLASH] Registered /help as the single LightCore Help Center');
   }catch(e){console.error('[HELP SLASH REGISTER]',e?.stack||e)}
  });
 
  client.on('interactionCreate',async i=>{try{
   if(i.isChatInputCommand()&&i.commandName==='help'){
-   const cat=i.options.getString('category')||'home';
+   const cat=(i.options.getString('category')||'home').toLowerCase().replace(/\s+/g,'');
    const page=Math.max(0,(i.options.getInteger('page')||1)-1);
    return i.reply(help(cat,page));
   }
-  if(i.isStringSelectMenu()&&i.customId==='lc_help_category')return i.update(help(i.values[0],0));
+  if(i.isStringSelectMenu()&&(i.customId==='lc_help_category_1'||i.customId==='lc_help_category_2'))return i.update(help(i.values[0],0));
   if(i.isButton()&&i.customId==='lc_help_home')return i.update(help('home',0));
   if(i.isButton()&&(i.customId.startsWith('lc_help_prev:')||i.customId.startsWith('lc_help_next:'))){const [action,cat,raw]=i.customId.split(':');const p=Number(raw)||0;return i.update(help(cat,action==='lc_help_prev'?p-1:p+1));}
  }catch(e){console.error('[HELP INTERACTION]',e);if(i.isRepliable()&&!i.replied&&!i.deferred)i.reply({content:'❌ The Help Center could not update.',ephemeral:true}).catch(()=>{});}});
