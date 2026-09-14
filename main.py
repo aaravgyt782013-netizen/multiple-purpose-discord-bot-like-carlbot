@@ -7,6 +7,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 from database import init_db
+from health_server import start_health_server
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -98,4 +99,5 @@ async def runner():
 
 
 if __name__ == "__main__":
+    start_health_server()
     asyncio.run(runner())
