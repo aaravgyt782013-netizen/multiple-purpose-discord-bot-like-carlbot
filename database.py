@@ -12,94 +12,193 @@ def connect():
 
 def init_db():
     with connect() as db:
-        db.executescript('''
-        CREATE TABLE IF NOT EXISTS guild_settings (
-            guild_id INTEGER PRIMARY KEY,
-            prefix TEXT NOT NULL DEFAULT '.',
-            log_channel INTEGER,
-            welcome_channel INTEGER,
-            goodbye_channel INTEGER,
-            welcome_message TEXT,
-            goodbye_message TEXT,
-            muted_role INTEGER,
-            ticket_category INTEGER,
-            ticket_log_channel INTEGER,
-            level_enabled INTEGER NOT NULL DEFAULT 1,
-            currency_enabled INTEGER NOT NULL DEFAULT 1,
-            automod_enabled INTEGER NOT NULL DEFAULT 0,
-            level_xp_min INTEGER NOT NULL DEFAULT 15,
-            level_xp_max INTEGER NOT NULL DEFAULT 25,
-            level_cooldown INTEGER NOT NULL DEFAULT 60,
-            level_message TEXT DEFAULT 'GG {user}! You reached level {level}.',
-            memberstats_enabled INTEGER NOT NULL DEFAULT 1,
-            memberstats_channel INTEGER,
-            application_review_channel INTEGER,
-            tempvoice_category INTEGER,
-            tempvoice_join_channel INTEGER
-        );
-        CREATE TABLE IF NOT EXISTS warnings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            guild_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            moderator_id INTEGER NOT NULL,
-            reason TEXT,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE TABLE IF NOT EXISTS xp (
-            guild_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            xp INTEGER NOT NULL DEFAULT 0,
-            level INTEGER NOT NULL DEFAULT 0,
-            PRIMARY KEY (guild_id, user_id)
-        );
-        CREATE TABLE IF NOT EXISTS balances (
-            guild_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            balance INTEGER NOT NULL DEFAULT 0,
-            PRIMARY KEY (guild_id, user_id)
-        );
-        CREATE TABLE IF NOT EXISTS custom_commands (
-            guild_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            response TEXT NOT NULL,
-            PRIMARY KEY (guild_id, name)
-        );
-        CREATE TABLE IF NOT EXISTS shop_items (
-            guild_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            price INTEGER NOT NULL,
-            description TEXT,
-            PRIMARY KEY (guild_id, name)
-        );
-        CREATE TABLE IF NOT EXISTS member_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            guild_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            event_type TEXT NOT NULL,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS idx_member_events_guild_time ON member_events(guild_id, created_at);
-        CREATE TABLE IF NOT EXISTS applications (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            guild_id INTEGER NOT NULL,
-            form_name TEXT NOT NULL,
-            questions TEXT NOT NULL,
-            review_channel INTEGER,
-            enabled INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE TABLE IF NOT EXISTS application_submissions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            application_id INTEGER NOT NULL,
-            guild_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            answers TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'pending',
-            reviewer_id INTEGER,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS idx_app_submissions_app ON application_submissions(application_id, status);
-        ''')
+        db.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS guild_settings (
+                guild_id INTEGER PRIMARY KEY,
+                prefix TEXT NOT NULL DEFAULT '.',
+                log_channel INTEGER,
+                welcome_channel INTEGER,
+                goodbye_channel INTEGER,
+                welcome_message TEXT,
+                goodbye_message TEXT,
+                muted_role INTEGER,
+                ticket_category INTEGER,
+                ticket_log_channel INTEGER,
+                level_enabled INTEGER NOT NULL DEFAULT 1,
+                currency_enabled INTEGER NOT NULL DEFAULT 1,
+                automod_enabled INTEGER NOT NULL DEFAULT 0,
+                level_xp_min INTEGER NOT NULL DEFAULT 15,
+                level_xp_max INTEGER NOT NULL DEFAULT 25,
+                level_cooldown INTEGER NOT NULL DEFAULT 60,
+                level_message TEXT DEFAULT 'GG {user}! You reached level {level}.',
+                memberstats_enabled INTEGER NOT NULL DEFAULT 1,
+                memberstats_channel INTEGER,
+                application_review_channel INTEGER,
+                tempvoice_category INTEGER,
+                tempvoice_join_channel INTEGER
+            );
+
+            CREATE TABLE IF NOT EXISTS warnings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                moderator_id INTEGER NOT NULL,
+                reason TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS moderation_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                target_id INTEGER,
+                moderator_id INTEGER,
+                reason TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS event_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                event_type TEXT NOT NULL,
+                actor_id INTEGER,
+                channel_id INTEGER,
+                target_id INTEGER,
+                details TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS xp (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                xp INTEGER NOT NULL DEFAULT 0,
+                level INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (guild_id, user_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS level_rewards (
+                guild_id INTEGER NOT NULL,
+                level INTEGER NOT NULL,
+                role_id INTEGER NOT NULL,
+                PRIMARY KEY (guild_id, level)
+            );
+
+            CREATE TABLE IF NOT EXISTS balances (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                balance INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (guild_id, user_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS custom_commands (
+                guild_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                response TEXT NOT NULL,
+                PRIMARY KEY (guild_id, name)
+            );
+
+            CREATE TABLE IF NOT EXISTS shop_items (
+                guild_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                price INTEGER NOT NULL,
+                description TEXT,
+                PRIMARY KEY (guild_id, name)
+            );
+
+            CREATE TABLE IF NOT EXISTS role_panels (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
+                message_id INTEGER NOT NULL UNIQUE,
+                role_id INTEGER NOT NULL,
+                label TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS tickets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL UNIQUE,
+                user_id INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'open',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                closed_at TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS ticket_transcripts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticket_id INTEGER NOT NULL,
+                transcript TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS giveaways (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
+                message_id INTEGER NOT NULL UNIQUE,
+                prize TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                winner_id INTEGER,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                ended_at TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS giveaway_entries (
+                giveaway_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (giveaway_id, user_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS member_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                event_type TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS applications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                form_name TEXT NOT NULL,
+                questions TEXT NOT NULL,
+                review_channel INTEGER,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS application_submissions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                application_id INTEGER NOT NULL,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                answers TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                reviewer_id INTEGER,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS temp_voice_channels (
+                channel_id INTEGER PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                owner_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                status TEXT NOT NULL DEFAULT 'active'
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_warnings_guild_user ON warnings(guild_id, user_id);
+            CREATE INDEX IF NOT EXISTS idx_moderation_logs_guild_time ON moderation_logs(guild_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_event_logs_guild_time ON event_logs(guild_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_member_events_guild_time ON member_events(guild_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_app_submissions_app ON application_submissions(application_id, status);
+            CREATE INDEX IF NOT EXISTS idx_tickets_guild_status ON tickets(guild_id, status);
+            CREATE INDEX IF NOT EXISTS idx_giveaways_guild_status ON giveaways(guild_id, status);
+            CREATE INDEX IF NOT EXISTS idx_temp_voice_guild_status ON temp_voice_channels(guild_id, status);
+            """
+        )
 
 
 def ensure_guild(guild_id):
@@ -107,16 +206,18 @@ def ensure_guild(guild_id):
         db.execute("INSERT OR IGNORE INTO guild_settings (guild_id) VALUES (?)", (guild_id,))
 
 
+_ALLOWED_SETTINGS = {
+    'prefix', 'log_channel', 'welcome_channel', 'goodbye_channel',
+    'welcome_message', 'goodbye_message', 'muted_role', 'ticket_category',
+    'ticket_log_channel', 'level_enabled', 'currency_enabled', 'automod_enabled',
+    'level_xp_min', 'level_xp_max', 'level_cooldown', 'level_message',
+    'memberstats_enabled', 'memberstats_channel', 'application_review_channel',
+    'tempvoice_category', 'tempvoice_join_channel'
+}
+
+
 def get_setting(guild_id, key):
-    allowed = {
-        'prefix', 'log_channel', 'welcome_channel', 'goodbye_channel',
-        'welcome_message', 'goodbye_message', 'muted_role', 'ticket_category',
-        'ticket_log_channel', 'level_enabled', 'currency_enabled', 'automod_enabled',
-        'level_xp_min', 'level_xp_max', 'level_cooldown', 'level_message',
-        'memberstats_enabled', 'memberstats_channel', 'application_review_channel',
-        'tempvoice_category', 'tempvoice_join_channel'
-    }
-    if key not in allowed:
+    if key not in _ALLOWED_SETTINGS:
         raise KeyError(key)
     ensure_guild(guild_id)
     with connect() as db:
@@ -125,15 +226,7 @@ def get_setting(guild_id, key):
 
 
 def set_setting(guild_id, key, value):
-    allowed = {
-        'prefix', 'log_channel', 'welcome_channel', 'goodbye_channel',
-        'welcome_message', 'goodbye_message', 'muted_role', 'ticket_category',
-        'ticket_log_channel', 'level_enabled', 'currency_enabled', 'automod_enabled',
-        'level_xp_min', 'level_xp_max', 'level_cooldown', 'level_message',
-        'memberstats_enabled', 'memberstats_channel', 'application_review_channel',
-        'tempvoice_category', 'tempvoice_join_channel'
-    }
-    if key not in allowed:
+    if key not in _ALLOWED_SETTINGS:
         raise KeyError(key)
     ensure_guild(guild_id)
     with connect() as db:
