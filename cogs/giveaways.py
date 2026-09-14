@@ -8,9 +8,15 @@ class GiveawayView(discord.ui.View):
     def __init__(self, giveaway_id):
         super().__init__(timeout=None)
         self.giveaway_id = giveaway_id
+        button = discord.ui.Button(
+            label="Claim",
+            style=discord.ButtonStyle.success,
+            custom_id=f"lightcore:giveaway_claim:{giveaway_id}",
+        )
+        button.callback = self.claim
+        self.add_item(button)
 
-    @discord.ui.button(label="Claim", style=discord.ButtonStyle.success)
-    async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def claim(self, interaction: discord.Interaction):
         with connect() as db:
             row = db.execute(
                 "SELECT status, winner_id FROM giveaways WHERE id=?",
@@ -29,11 +35,14 @@ class GiveawayView(discord.ui.View):
                 "UPDATE giveaways SET status='ended', winner_id=?, ended_at=CURRENT_TIMESTAMP WHERE id=? AND status='active'",
                 (interaction.user.id, self.giveaway_id),
             )
-            updated = db.execute("SELECT status,winner_id FROM giveaways WHERE id=?", (self.giveaway_id,)).fetchone()
+            updated = db.execute(
+                "SELECT status,winner_id FROM giveaways WHERE id=?",
+                (self.giveaway_id,),
+            ).fetchone()
 
         if updated["winner_id"] != interaction.user.id:
             return await interaction.response.send_message("Someone else claimed this giveaway first.", ephemeral=True)
-        button.disabled = True
+        self.children[0].disabled = True
         await interaction.message.edit(view=self)
         await interaction.response.send_message("🎉 You won the giveaway! Please follow the organizer's instructions.")
 
@@ -45,7 +54,7 @@ class Giveaways(commands.Cog):
     async def cog_load(self):
         with connect() as db:
             rows = db.execute(
-                "SELECT id, channel_id, message_id FROM giveaways WHERE status='active'"
+                "SELECT id, message_id FROM giveaways WHERE status='active'"
             ).fetchall()
         for row in rows:
             self.bot.add_view(GiveawayView(row["id"]), message_id=row["message_id"])
@@ -53,13 +62,15 @@ class Giveaways(commands.Cog):
     @commands.hybrid_command(name="giveaway", description="Create a persistent claim-based giveaway.")
     @commands.has_permissions(manage_guild=True)
     async def giveaway(self, ctx, *, prize: str):
-        embed = discord.Embed(
-            title="🎉 LightCore Giveaway",
-            description=f"**Prize:** {prize}\n\nBe the first eligible member to claim it.",
-            color=discord.Color.gold(),
+        # The temporary ID is replaced immediately after the DB insert.
+        message = await ctx.send(
+            embed=discord.Embed(
+                title="🎉 LightCore Giveaway",
+                description=f"**Prize:** {prize}\n\nBe the first eligible member to claim it.",
+                color=discord.Color.gold(),
+            ),
+            view=None,
         )
-        embed.set_footer(text="LightCore • Persistent giveaway")
-        message = await ctx.send(embed=embed, view=GiveawayView(0))
         with connect() as db:
             cursor = db.execute(
                 "INSERT INTO giveaways(guild_id,channel_id,message_id,prize,status) VALUES(?,?,?,?,'active')",
