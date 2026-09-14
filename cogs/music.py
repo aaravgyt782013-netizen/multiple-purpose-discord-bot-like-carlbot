@@ -10,11 +10,13 @@ try:
 except ImportError:  # pragma: no cover
     wavelink = None
 
+from database import connect
+
 log = logging.getLogger(__name__)
 
 
 class Music(commands.Cog):
-    """Lavalink-backed music with a compact, editable-in-place control panel."""
+    """Lavalink-backed music with persistent per-server autoplay."""
 
     def __init__(self, bot):
         self.bot = bot
@@ -23,6 +25,41 @@ class Music(commands.Cog):
         self.track_requesters = {}
         self.loop_modes = defaultdict(lambda: "off")
         self.panel_messages = {}
+        self.autoplay = defaultdict(bool)
+
+    async def cog_load(self):
+        # Keep autoplay persistent without coupling music settings to the general
+        # guild_settings schema. Existing databases migrate automatically.
+        with connect() as db:
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS music_settings ("
+                "guild_id INTEGER PRIMARY KEY, autoplay INTEGER NOT NULL DEFAULT 0)"
+            )
+            rows = db.execute("SELECT guild_id, autoplay FROM music_settings").fetchall()
+        for row in rows:
+            self.autoplay[row["guild_id"]] = bool(row["autoplay"])
+
+    def _save_autoplay(self, guild_id, enabled):
+        self.autoplay[guild_id] = enabled
+        with connect() as db:
+            db.execute(
+                "INSERT INTO music_settings(guild_id, autoplay) VALUES(?, ?) "
+                "ON CONFLICT(guild_id) DO UPDATE SET autoplay=excluded.autoplay",
+                (guild_id, int(enabled)),
+            )
+
+    def _autoplay_enabled(self, guild_id):
+        return bool(self.autoplay[guild_id])
+
+    def _set_player_autoplay(self, player, enabled):
+        if wavelink is None or not isinstance(player, wavelink.Player):
+            return
+        player.autoplay = wavelink.AutoPlayMode.enabled if enabled else wavelink.AutoPlayMode.disabled
+        if not enabled:
+            try:
+                player.auto_queue.clear()
+            except Exception:
+                pass
 
     @property
     def node(self):
@@ -61,6 +98,7 @@ class Music(commands.Cog):
         if player is None:
             try:
                 player = await channel.connect(cls=wavelink.Player, self_deaf=True)
+                self._set_player_autoplay(player, self._autoplay_enabled(ctx.guild.id))
             except discord.Forbidden:
                 await ctx.send("❌ I cannot join/speak in that voice channel. Give LightCore **View Channel, Connect, and Speak** permissions.")
                 return None
@@ -87,17 +125,24 @@ class Music(commands.Cog):
     def _embed(self, guild_id):
         guild = self.bot.get_guild(guild_id)
         player = guild.voice_client if guild else None
+        autoplay = self._autoplay_enabled(guild_id)
         if not isinstance(player, wavelink.Player) or not player.current:
-            return discord.Embed(title="🎵 Now Playing", description="Nothing is playing right now.", color=discord.Color.blurple())
+            embed = discord.Embed(title="🎵 Now Playing", description="Nothing is playing right now.", color=discord.Color.blurple())
+            embed.add_field(name="🔁 Autoplay", value="**On**" if autoplay else "**Off**", inline=True)
+            return embed
         track = player.current
         requester = self.requesters.get(guild_id)
-        embed = discord.Embed(title="🎵 Now Playing", description=f"**[{track.title}]({getattr(track, 'uri', None) or '#'})**", color=discord.Color.blurple())
+        embed = discord.Embed(
+            title="🎵 Now Playing",
+            description=f"**[{track.title}]({getattr(track, 'uri', None) or '#'})**",
+            color=discord.Color.blurple(),
+        )
         artwork = getattr(track, "artwork", None)
         if artwork:
             embed.set_thumbnail(url=artwork)
         embed.add_field(name="Duration", value=f"`{self._duration(track.length)}`", inline=True)
         embed.add_field(name="Requested by", value=f"<@{requester}>" if requester else "Unknown", inline=True)
-        embed.add_field(name="Album Art", value="Shown above" if artwork else "Not available", inline=True)
+        embed.add_field(name="🔁 Autoplay", value="**On**" if autoplay else "**Off**", inline=True)
         embed.set_footer(text=f"Queue: {len(self.queues[guild_id])} • Loop: {self.loop_modes[guild_id]}")
         return embed
 
@@ -124,15 +169,18 @@ class Music(commands.Cog):
         if self.loop_modes[guild_id] == "track" and player.current:
             track = player.current
             self.requesters[guild_id] = self.track_requesters.get(id(track), self.requesters.get(guild_id))
-            await player.play(track)
+            await player.play(track, populate=self._autoplay_enabled(guild_id), max_populate=5)
             await self._update_panel(guild_id)
             return
         if queue:
+            # A manually queued track always has priority over Lavalink's auto queue.
             track = queue.popleft()
             self.requesters[guild_id] = self.track_requesters.get(id(track), self.requesters.get(guild_id))
-            await player.play(track)
+            await player.play(track, populate=self._autoplay_enabled(guild_id), max_populate=5)
             await self._update_panel(guild_id)
             return
+        # With no manual queue, Wavelink's native AutoPlay/auto_queue takes over.
+        # We deliberately do not call player.stop()/disconnect here.
         await self._update_panel(guild_id)
 
     @commands.hybrid_command(name="join", description="Join your voice channel using Lavalink.")
@@ -161,22 +209,53 @@ class Music(commands.Cog):
         track = tracks[0]
         self.track_requesters[id(track)] = ctx.author.id
         try:
+            # A manual play request explicitly ends autoplay so it does not
+            # unexpectedly resume a recommendation chain after this request.
+            if self._autoplay_enabled(ctx.guild.id):
+                self._save_autoplay(ctx.guild.id, False)
+                self._set_player_autoplay(player, False)
+
             if player.current:
                 self.queues[ctx.guild.id].append(track)
-                embed = discord.Embed(title="✅ Added to Queue", description=f"**[{track.title}]({getattr(track, 'uri', None) or '#'})**", color=discord.Color.green())
+                embed = discord.Embed(
+                    title="✅ Added to Queue",
+                    description=f"**[{track.title}]({getattr(track, 'uri', None) or '#'})**",
+                    color=discord.Color.green(),
+                )
                 artwork = getattr(track, "artwork", None)
                 if artwork:
                     embed.set_thumbnail(url=artwork)
                 embed.add_field(name="Duration", value=f"`{self._duration(track.length)}`", inline=True)
-                embed.set_footer(text="The current Now Playing panel will update when this track starts.")
+                embed.set_footer(text="Autoplay stopped because a song was manually queued.")
                 await ctx.send(embed=embed)
             else:
                 self.requesters[ctx.guild.id] = ctx.author.id
-                await player.play(track)
+                await player.play(track, populate=self._autoplay_enabled(ctx.guild.id), max_populate=5)
             await self._send_or_update_panel(ctx)
         except Exception as exc:
             log.exception("Lavalink playback failed")
             await ctx.send(f"❌ Lavalink found the track but could not start playback: `{type(exc).__name__}: {exc}`")
+
+    @commands.hybrid_command(name="autoplay", description="Toggle persistent server autoplay on or off.")
+    async def autoplay_command(self, ctx):
+        player = ctx.voice_client
+        enabled = not self._autoplay_enabled(ctx.guild.id)
+        self._save_autoplay(ctx.guild.id, enabled)
+        if isinstance(player, wavelink.Player):
+            if enabled:
+                self._set_player_autoplay(player, True)
+                if player.current:
+                    # Populate recommendations from the current track while
+                    # preserving the current playback position.
+                    position = max(0, int(getattr(player, "position", 0) or 0))
+                    try:
+                        await player.play(player.current, start=position, populate=True, max_populate=5)
+                    except Exception:
+                        log.exception("Failed to populate autoplay recommendations")
+            else:
+                self._set_player_autoplay(player, False)
+        await self._update_panel(ctx.guild.id)
+        await ctx.send(f"🔁 Autoplay is now **{'On' if enabled else 'Off'}** for this server.")
 
     @commands.hybrid_command(name="pause", description="Pause or resume the current player.")
     async def pause(self, ctx):
@@ -197,7 +276,7 @@ class Music(commands.Cog):
             return await ctx.send("❌ Join the same voice channel as LightCore to control music.")
         await player.skip()
 
-    @commands.hybrid_command(name="stop", description="Stop playback and clear the queue.")
+    @commands.hybrid_command(name="stop", description="Stop playback, clear the queue, and disable autoplay.")
     async def stop(self, ctx):
         player = ctx.voice_client
         if not isinstance(player, wavelink.Player):
@@ -206,6 +285,8 @@ class Music(commands.Cog):
             return await ctx.send("❌ Join the same voice channel as LightCore to control music.")
         self.queues[ctx.guild.id].clear()
         self.loop_modes[ctx.guild.id] = "off"
+        self._save_autoplay(ctx.guild.id, False)
+        self._set_player_autoplay(player, False)
         await player.stop()
         await self._update_panel(ctx.guild.id)
 
@@ -239,6 +320,7 @@ class Music(commands.Cog):
         player = ctx.voice_client
         if isinstance(player, wavelink.Player):
             self.queues[ctx.guild.id].clear()
+            self._set_player_autoplay(player, False)
             await player.disconnect()
             self.panel_messages.pop(ctx.guild.id, None)
             return await ctx.send("👋 Left the voice channel.")
@@ -263,8 +345,10 @@ class Music(commands.Cog):
     @commands.Cog.listener()
     async def on_wavelink_track_start(self, payload):
         if payload.player and payload.track:
-            log.info("Track started in guild %s: %s", payload.player.guild.id, payload.track.title)
-            await self._update_panel(payload.player.guild.id)
+            guild_id = payload.player.guild.id
+            self.requesters[guild_id] = self.track_requesters.get(id(payload.track), self.requesters.get(guild_id))
+            log.info("Track started in guild %s: %s", guild_id, payload.track.title)
+            await self._update_panel(guild_id)
 
     @commands.Cog.listener()
     async def on_wavelink_track_end(self, payload):
@@ -272,10 +356,15 @@ class Music(commands.Cog):
         if not player or not player.guild:
             return
         guild_id = player.guild.id
+        # Wavelink's native AutoPlay owns its auto_queue. Only our manual
+        # queue/loop needs explicit advancement here.
         if self.loop_modes[guild_id] == "queue" and payload.track:
             self.queues[guild_id].append(payload.track)
         try:
-            await self._play_next(guild_id, player)
+            if self.queues[guild_id]:
+                await self._play_next(guild_id, player)
+            else:
+                await self._update_panel(guild_id)
         except Exception:
             log.exception("Failed to advance music queue in guild %s", guild_id)
 
@@ -286,15 +375,26 @@ class MusicPanel(discord.ui.View):
         self.cog = cog
         self.guild_id = guild_id
         controls = [
-            ("Pause", "⏸️", "pause", discord.ButtonStyle.primary),
-            ("Skip", "⏭️", "skip", discord.ButtonStyle.primary),
-            ("Stop", "⏹️", "stop", discord.ButtonStyle.danger),
-            ("Shuffle", "🔀", "shuffle", discord.ButtonStyle.secondary),
-            ("Queue", "📜", "queue", discord.ButtonStyle.secondary),
-            ("Loop", "🔁", "loop", discord.ButtonStyle.primary),
+            ("Pause", "⏸️", "pause", discord.ButtonStyle.primary, 0),
+            ("Skip", "⏭️", "skip", discord.ButtonStyle.primary, 0),
+            ("Stop", "⏹️", "stop", discord.ButtonStyle.danger, 0),
+            ("Shuffle", "🔀", "shuffle", discord.ButtonStyle.secondary, 0),
+            ("Queue", "📜", "queue", discord.ButtonStyle.secondary, 1),
+            ("Loop", "🔁", "loop", discord.ButtonStyle.primary, 1),
+            ("Autoplay", "🔁", "autoplay", discord.ButtonStyle.primary, 1),
         ]
-        for index, (label, emoji, action, style) in enumerate(controls):
-            button = discord.ui.Button(label=label, emoji=emoji, style=style, custom_id=f"lightcore:music:{guild_id}:{action}", row=0 if index < 4 else 1)
+        for label, emoji, action, style, row in controls:
+            button = discord.ui.Button(
+                label=label,
+                emoji=emoji,
+                style=style,
+                custom_id=f"lightcore:music:{guild_id}:{action}",
+                row=row,
+            )
+            if action == "autoplay":
+                button.label = "Autoplay On" if cog._autoplay_enabled(guild_id) else "Autoplay Off"
+            if action == "loop" and cog.loop_modes[guild_id] != "off":
+                button.label = f"Loop {cog.loop_modes[guild_id].title()}"
             button.callback = self._callback(action)
             self.add_item(button)
 
@@ -313,6 +413,8 @@ class MusicPanel(discord.ui.View):
             elif action == "stop":
                 self.cog.queues[self.guild_id].clear()
                 self.cog.loop_modes[self.guild_id] = "off"
+                self.cog._save_autoplay(self.guild_id, False)
+                self.cog._set_player_autoplay(player, False)
                 await player.stop()
             elif action == "shuffle":
                 random.shuffle(self.cog.queues[self.guild_id])
@@ -320,12 +422,28 @@ class MusicPanel(discord.ui.View):
                 modes = ["off", "track", "queue"]
                 current = modes.index(self.cog.loop_modes[self.guild_id])
                 self.cog.loop_modes[self.guild_id] = modes[(current + 1) % len(modes)]
+            elif action == "autoplay":
+                enabled = not self.cog._autoplay_enabled(self.guild_id)
+                self.cog._save_autoplay(self.guild_id, enabled)
+                if enabled:
+                    self.cog._set_player_autoplay(player, True)
+                    if player.current:
+                        position = max(0, int(getattr(player, "position", 0) or 0))
+                        try:
+                            await player.play(player.current, start=position, populate=True, max_populate=5)
+                        except Exception:
+                            log.exception("Failed to populate autoplay recommendations from panel")
+                else:
+                    self.cog._set_player_autoplay(player, False)
             elif action == "queue":
                 queue = self.cog.queues[self.guild_id]
                 if not queue:
                     return await interaction.response.send_message("📜 Queue is empty.", ephemeral=True)
                 text = "\n".join(f"**{i}.** {t.title} — `{self.cog._duration(t.length)}`" for i, t in enumerate(list(queue)[:15], 1))
-                return await interaction.response.send_message(embed=discord.Embed(title="📜 Music Queue", description=text, color=discord.Color.blurple()), ephemeral=True)
+                return await interaction.response.send_message(
+                    embed=discord.Embed(title="📜 Music Queue", description=text, color=discord.Color.blurple()),
+                    ephemeral=True,
+                )
             await interaction.response.edit_message(embed=self.cog._embed(self.guild_id), view=MusicPanel(self.cog, self.guild_id))
         return callback
 
