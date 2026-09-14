@@ -1,6 +1,6 @@
 const fs=require('fs');
 const path=require('path');
-const {REST,Routes,EmbedBuilder,ActionRowBuilder,ButtonBuilder,ButtonStyle,PermissionFlagsBits,ApplicationCommandType}=require('discord.js');
+const {REST,Routes,EmbedBuilder,ActionRowBuilder,ButtonBuilder,ButtonStyle,PermissionFlagsBits}=require('discord.js');
 
 module.exports=function attachProSuite(client,prefix='.'){
   const P=prefix||'.';
@@ -21,10 +21,9 @@ module.exports=function attachProSuite(client,prefix='.'){
   const emb=(title,desc,color=0x5865f2)=>new EmbedBuilder().setTitle(title).setDescription(desc).setColor(color).setTimestamp();
   const has=(m,p)=>m.member?.permissions?.has(p)||m.guild?.ownerId===m.author.id;
   const bot=m=>m.guild?.members?.me;
-  const blocked=(m,c)=>{const g=gd(m.guild.id);return g.disabled.includes(c)};
+  const blocked=(m,c)=>gd(m.guild.id).disabled.includes(c);
   const restricted=(m,c)=>{const r=gd(m.guild.id).restricted[c];if(!r)return false;const roleOk=!r.roles?.length||r.roles.some(id=>m.member.roles.cache.has(id));const channelOk=!r.channels?.length||r.channels.includes(m.channel.id);return roleOk&&channelOk};
   const cd=(m,c,seconds=3)=>{const key=`${m.guild.id}:${m.author.id}:${c}`,until=cooldowns.get(key)||0;if(until>Date.now())return Math.ceil((until-Date.now())/1000);cooldowns.set(key,Date.now()+seconds*1000);return 0};
-  const usage=(m,c)=>m.reply(`Usage: ${P}${c}`);
   async function deleteChannel(m){
     if(!has(m,PermissionFlagsBits.ManageChannels))return m.reply('❌ You need **Manage Channels**.');
     const target=m.mentions.channels.first()||m.channel;
@@ -59,7 +58,14 @@ module.exports=function attachProSuite(client,prefix='.'){
       {name:'userinfo',description:'Show user information',options:[{name:'user',description:'User',type:6,required:false}]},
       {name:'avatar',description:'Show a user avatar',options:[{name:'user',description:'User',type:6,required:false}]}
     ];
-    try{const rest=new REST({version:'10'}).setToken(process.env.DISCORD_TOKEN);await rest.put(Routes.applicationCommands(id),{body:commands});console.log(`[PRO] Registered ${commands.length} global slash commands.`)}catch(e){console.error('[PRO SLASH]',e?.message||e)}
+    try{
+      const rest=new REST({version:'10'}).setToken(process.env.DISCORD_TOKEN);
+      const existing=await rest.get(Routes.applicationCommands(id));
+      const map=new Map((Array.isArray(existing)?existing:[]).map(x=>[x.name,x]));
+      for(const c of commands)map.set(c.name,c);
+      await rest.put(Routes.applicationCommands(id),{body:Array.from(map.values())});
+      console.log(`[PRO] Registered/updated ${commands.length} core slash commands while preserving existing commands.`)
+    }catch(e){console.error('[PRO SLASH]',e?.message||e)}
   }
   client.once('ready',()=>{console.log(`[PRO] LightCore Pro suite ready | uptime base ${new Date(started).toISOString()}`);slashRegister().catch(()=>{})});
   client.on('interactionCreate',async i=>{
@@ -67,7 +73,7 @@ module.exports=function attachProSuite(client,prefix='.'){
       if(i.isButton()&&i.customId.startsWith('lc_delete_')){if(i.customId==='lc_delete_cancel')return i.update({content:'❎ Cancelled.',components:[]});const id=i.customId.slice('lc_delete_'.length),ch=i.guild?.channels.cache.get(id);if(!ch)return i.update({content:'❌ Channel no longer exists.',components:[]});if(!i.memberPermissions?.has(PermissionFlagsBits.ManageChannels))return i.reply({content:'❌ You need Manage Channels.',ephemeral:true});await i.update({content:'🗑️ Deleting channel...',components:[]});await ch.delete(`Requested by ${i.user.tag}`);return;}
       if(!i.isChatInputCommand())return;
       const c=i.commandName;
-      const fake={guild:i.guild,member:i.member,author:i.user,channel:i.channel,mentions:{channels:{first:()=>i.options.getChannel('channel')},users:{first:()=>i.options.getUser('user')}},reply:async o=>i.reply(o),channelId:i.channelId};
+      const fake={guild:i.guild,member:i.member,author:i.user,channel:i.channel,mentions:{channels:{first:()=>i.options.getChannel('channel')}},reply:async o=>i.reply(o)};
       if(c==='help')return i.reply({embeds:[emb('🤖 LightCore Command Center',`Prefix: \`${P}\`\n\nUse **${P}help <category>** for detailed commands.\nCategories include moderation, security, logging, tickets, music, economy, leveling, applications, fun, utility, roles, welcome, voice and more.`)]});
       if(c==='ping')return i.reply(`🏓 Pong! **${client.ws.ping}ms**`);
       if(c==='uptime')return i.reply({embeds:[emb('⏱️ LightCore Uptime',`**Uptime:** ${fmt(Date.now()-started)}\n**Ping:** ${client.ws.ping}ms\n**Servers:** ${client.guilds.cache.size}\n**Users cached:** ${client.users.cache.size}`)]});
@@ -99,8 +105,8 @@ module.exports=function attachProSuite(client,prefix='.'){
       }
       if(['aliases','cooldowns','permissions'].includes(c)){
         if(c==='aliases')return m.reply({embeds:[emb('🔗 Command Aliases',Array.from(aliases.entries()).map(([a,v])=>`\`${P}${a}\` → \`${P}${v}\``).join('\n'))]});
-        if(c==='cooldowns')return m.reply({embeds:[emb('⏱️ Cooldown Engine','LightCore applies short safety cooldowns to high-impact utility commands. More per-command controls can be configured from the dashboard.') ]});
-        return m.reply({embeds:[emb('🛡️ Permission Engine','Commands check Discord permissions before administrative actions. Use Discord command permissions and server roles for additional control.') ]});
+        if(c==='cooldowns')return m.reply({embeds:[emb('⏱️ Cooldown Engine','LightCore applies short safety cooldowns to high-impact utility commands. More per-command controls can be configured from the dashboard.')]});
+        return m.reply({embeds:[emb('🛡️ Permission Engine','Commands check Discord permissions before administrative actions. Use Discord command permissions and server roles for additional control.')]});
       }
     }catch(e){console.error('[PRO MESSAGE]',e?.stack||e)}
   });
