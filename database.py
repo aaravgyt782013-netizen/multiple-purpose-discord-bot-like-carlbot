@@ -38,7 +38,6 @@ def init_db():
                 tempvoice_category INTEGER,
                 tempvoice_join_channel INTEGER
             );
-
             CREATE TABLE IF NOT EXISTS warnings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER NOT NULL,
@@ -47,7 +46,6 @@ def init_db():
                 reason TEXT,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
-
             CREATE TABLE IF NOT EXISTS moderation_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER NOT NULL,
@@ -57,7 +55,6 @@ def init_db():
                 reason TEXT,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
-
             CREATE TABLE IF NOT EXISTS event_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER NOT NULL,
@@ -68,7 +65,6 @@ def init_db():
                 details TEXT,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
-
             CREATE TABLE IF NOT EXISTS xp (
                 guild_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
@@ -76,28 +72,24 @@ def init_db():
                 level INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (guild_id, user_id)
             );
-
             CREATE TABLE IF NOT EXISTS level_rewards (
                 guild_id INTEGER NOT NULL,
                 level INTEGER NOT NULL,
                 role_id INTEGER NOT NULL,
                 PRIMARY KEY (guild_id, level)
             );
-
             CREATE TABLE IF NOT EXISTS balances (
                 guild_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
                 balance INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (guild_id, user_id)
             );
-
             CREATE TABLE IF NOT EXISTS custom_commands (
                 guild_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
                 response TEXT NOT NULL,
                 PRIMARY KEY (guild_id, name)
             );
-
             CREATE TABLE IF NOT EXISTS shop_items (
                 guild_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
@@ -105,7 +97,6 @@ def init_db():
                 description TEXT,
                 PRIMARY KEY (guild_id, name)
             );
-
             CREATE TABLE IF NOT EXISTS role_panels (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER NOT NULL,
@@ -115,7 +106,6 @@ def init_db():
                 label TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
-
             CREATE TABLE IF NOT EXISTS tickets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER NOT NULL,
@@ -125,14 +115,12 @@ def init_db():
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 closed_at TEXT
             );
-
             CREATE TABLE IF NOT EXISTS ticket_transcripts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ticket_id INTEGER NOT NULL,
                 transcript TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
-
             CREATE TABLE IF NOT EXISTS giveaways (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER NOT NULL,
@@ -144,14 +132,12 @@ def init_db():
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 ended_at TEXT
             );
-
             CREATE TABLE IF NOT EXISTS giveaway_entries (
                 giveaway_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (giveaway_id, user_id)
             );
-
             CREATE TABLE IF NOT EXISTS member_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER NOT NULL,
@@ -159,7 +145,6 @@ def init_db():
                 event_type TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
-
             CREATE TABLE IF NOT EXISTS applications (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER NOT NULL,
@@ -169,7 +154,14 @@ def init_db():
                 enabled INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
-
+            CREATE TABLE IF NOT EXISTS application_panels (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                application_id INTEGER NOT NULL,
+                guild_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
+                message_id INTEGER NOT NULL UNIQUE,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
             CREATE TABLE IF NOT EXISTS application_submissions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 application_id INTEGER NOT NULL,
@@ -180,7 +172,6 @@ def init_db():
                 reviewer_id INTEGER,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
-
             CREATE TABLE IF NOT EXISTS temp_voice_channels (
                 channel_id INTEGER PRIMARY KEY,
                 guild_id INTEGER NOT NULL,
@@ -188,7 +179,6 @@ def init_db():
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 status TEXT NOT NULL DEFAULT 'active'
             );
-
             CREATE INDEX IF NOT EXISTS idx_warnings_guild_user ON warnings(guild_id, user_id);
             CREATE INDEX IF NOT EXISTS idx_moderation_logs_guild_time ON moderation_logs(guild_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_event_logs_guild_time ON event_logs(guild_id, created_at);
