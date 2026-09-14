@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import discord
 from discord.ext import commands
 
@@ -23,7 +25,8 @@ class Moderation(commands.Cog):
     @commands.hybrid_command(name="mute")
     @commands.has_permissions(moderate_members=True)
     async def mute(self, ctx, member: discord.Member, minutes: int = 10, *, reason="No reason provided"):
-        await member.timeout(discord.utils.utcnow() + discord.timedelta(minutes=minutes), reason=reason)
+        minutes = max(1, min(minutes, 40320))
+        await member.timeout(discord.utils.utcnow() + timedelta(minutes=minutes), reason=reason)
         await ctx.send(f"🔇 Timed out {member.mention} for {minutes} minutes.")
 
     @commands.hybrid_command(name="warn")
@@ -44,12 +47,7 @@ class Moderation(commands.Cog):
         text = "\n".join(f"• {r['reason']} — <@{r['moderator_id']}> ({r['created_at']})" for r in rows)
         await ctx.send(embed=discord.Embed(title=f"Warnings: {member}", description=text, color=discord.Color.orange()))
 
-    @ban.error
-    @kick.error
-    @mute.error
-    @warn.error
-    @warnings.error
-    async def moderation_error(self, ctx, error):
+    async def cog_command_error(self, ctx, error):
         if isinstance(error, commands.MissingPermissions):
             await ctx.send("You don't have permission to use that command.", ephemeral=True)
         elif isinstance(error, commands.BadArgument):
