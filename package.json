@@ -1,6 +1,6 @@
 {
   "name": "aarav-all-in-one-discord-bot",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "LightCore original all-in-one Discord bot inspired by the feature sets of popular moderation, utility, leveling, ticket, logging and community bots.",
   "main": "src/start.js",
   "scripts": {
@@ -13,6 +13,6 @@
     "@discordjs/voice": "^0.18.0",
     "discord.js": "^14.21.0",
     "dotenv": "^16.6.1",
-    "play-dl": "^1.9.7"
+    "@iamtraction/play-dl": "^2.0.1"
   }
 }
