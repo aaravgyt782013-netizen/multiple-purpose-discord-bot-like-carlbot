@@ -175,7 +175,7 @@ LightCore/
 - A Discord bot application/token
 - Message Content, Server Members and other required intents enabled in the Discord Developer Portal
 
-`discord.py 2.7.1` is the current stable release used by this project. citeturn0search0
+`discord.py 2.7.1` is the stable release pinned by this project.
 
 ## Setup
 
