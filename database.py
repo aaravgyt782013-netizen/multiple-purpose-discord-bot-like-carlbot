@@ -7,7 +7,14 @@ DB_PATH = Path("lightcore.db")
 def connect():
     db = sqlite3.connect(DB_PATH)
     db.row_factory = sqlite3.Row
+    db.execute("PRAGMA foreign_keys=ON")
     return db
+
+
+def _add_column(db, table, column, definition):
+    columns = {row[1] for row in db.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in columns:
+        db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def init_db():
@@ -179,6 +186,50 @@ def init_db():
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 status TEXT NOT NULL DEFAULT 'active'
             );
+            CREATE TABLE IF NOT EXISTS pets (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                species TEXT NOT NULL DEFAULT 'fox',
+                level INTEGER NOT NULL DEFAULT 1,
+                energy INTEGER NOT NULL DEFAULT 100,
+                PRIMARY KEY (guild_id, user_id)
+            );
+            CREATE TABLE IF NOT EXISTS reward_claims (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                reward_type TEXT NOT NULL,
+                claimed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (guild_id, user_id, reward_type)
+            );
+            CREATE TABLE IF NOT EXISTS xp_boosters (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                multiplier REAL NOT NULL DEFAULT 2.0,
+                expires_at TEXT NOT NULL,
+                PRIMARY KEY (guild_id, user_id)
+            );
+            CREATE TABLE IF NOT EXISTS ticket_meta (
+                ticket_id INTEGER PRIMARY KEY,
+                category TEXT NOT NULL DEFAULT 'general',
+                claimed_by INTEGER,
+                priority TEXT NOT NULL DEFAULT 'normal',
+                auto_close_minutes INTEGER NOT NULL DEFAULT 0,
+                last_activity TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS giveaway_bonus_roles (
+                giveaway_id INTEGER NOT NULL,
+                role_id INTEGER NOT NULL,
+                multiplier INTEGER NOT NULL DEFAULT 2,
+                PRIMARY KEY (giveaway_id, role_id)
+            );
+            CREATE TABLE IF NOT EXISTS invite_cache (
+                guild_id INTEGER NOT NULL,
+                code TEXT NOT NULL,
+                inviter_id INTEGER,
+                uses INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (guild_id, code)
+            );
             CREATE INDEX IF NOT EXISTS idx_warnings_guild_user ON warnings(guild_id, user_id);
             CREATE INDEX IF NOT EXISTS idx_moderation_logs_guild_time ON moderation_logs(guild_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_event_logs_guild_time ON event_logs(guild_id, created_at);
@@ -189,6 +240,7 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_temp_voice_guild_status ON temp_voice_channels(guild_id, status);
             """
         )
+        _add_column(db, "giveaway_entries", "weight", "INTEGER NOT NULL DEFAULT 1")
 
 
 def ensure_guild(guild_id):
