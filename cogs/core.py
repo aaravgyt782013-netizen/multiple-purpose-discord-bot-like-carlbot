@@ -22,6 +22,7 @@ CATEGORIES = [
 ]
 CATEGORY_MAP = {name: (emoji, cogs) for name, emoji, cogs in CATEGORIES}
 
+
 class HelpView(discord.ui.View):
     def __init__(self, bot, author_id):
         super().__init__(timeout=180); self.bot=bot; self.author_id=author_id; self.category=None; self.page=0; self.message=None; self.rebuild()
@@ -44,11 +45,13 @@ class HelpView(discord.ui.View):
         return sorted([c for c in self.bot.walk_commands() if not c.hidden and (c.cog_name or "Core") in cogs],key=lambda c:c.qualified_name.lower())
     @staticmethod
     def syntax(command):
-        return f".{command.qualified_name}{(' '+command.signature.strip()) if command.signature.strip() else ''}"
+        base=f".{command.qualified_name}{(' '+command.signature.strip()) if command.signature.strip() else ''}"
+        aliases=getattr(command, "aliases", [])
+        return f"{base}  •  aliases: {', '.join('.'+a for a in aliases)}" if aliases else base
     def home_embed(self):
-        embed=discord.Embed(title="LightCore • Help",description="Select a category to browse commands, syntax and descriptions.",color=discord.Color.blurple())
+        embed=discord.Embed(title="LightCore • Help",description="Select a category to browse commands, syntax, descriptions and short aliases.",color=discord.Color.blurple())
         if self.bot.user: embed.set_author(name="LightCore",icon_url=self.bot.user.display_avatar.url); embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-        embed.add_field(name="📖 Usage",value="Every hybrid command works with `.` and its Discord slash-command equivalent.",inline=False)
+        embed.add_field(name="📖 Usage",value="Every hybrid command works with `.` and its Discord slash-command equivalent. Short aliases are listed next to commands where available.",inline=False)
         for n,e,_ in CATEGORIES: embed.add_field(name=f"{e} {n}",value="Use the dropdown below.",inline=True)
         embed.set_footer(text="LightCore • Interactive Help • Expires after 3 minutes"); return embed
     def category_embed(self):
@@ -71,6 +74,7 @@ class HelpView(discord.ui.View):
             try: await self.message.edit(view=self)
             except discord.HTTPException: pass
 
+
 class Core(commands.Cog):
     def __init__(self,bot): self.bot=bot
     @commands.hybrid_command(name="help",description="Open the interactive LightCore help menu.")
@@ -84,5 +88,6 @@ class Core(commands.Cog):
         for label,key in (("Support Server","SUPPORT_SERVER_URL"),("Privacy Policy","PRIVACY_POLICY_URL"),("Terms of Service","TERMS_URL"),("Invite LightCore","INVITE_URL")):
             if os.getenv(key): links.append(f"[{label}]({os.getenv(key)})")
         embed.add_field(name="🔗 Public links",value=" • ".join(links) if links else "Public links are not configured yet.",inline=False); await ctx.send(embed=embed)
+
 
 async def setup(bot): await bot.add_cog(Core(bot))
