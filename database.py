@@ -32,6 +32,7 @@ def init_db():
                 muted_role INTEGER,
                 ticket_category INTEGER,
                 ticket_log_channel INTEGER,
+                ticket_config TEXT,
                 level_enabled INTEGER NOT NULL DEFAULT 1,
                 currency_enabled INTEGER NOT NULL DEFAULT 1,
                 automod_enabled INTEGER NOT NULL DEFAULT 0,
@@ -246,6 +247,7 @@ def init_db():
         _add_column(db, "temp_voice_channels", "hidden", "INTEGER NOT NULL DEFAULT 0")
         _add_column(db, "temp_voice_channels", "user_limit", "INTEGER NOT NULL DEFAULT 0")
         _add_column(db, "temp_voice_channels", "panel_message_id", "INTEGER")
+        _add_column(db, "guild_settings", "ticket_config", "TEXT")
 
 
 def ensure_guild(guild_id):
@@ -256,7 +258,7 @@ def ensure_guild(guild_id):
 _ALLOWED_SETTINGS = {
     'prefix', 'log_channel', 'welcome_channel', 'goodbye_channel',
     'welcome_message', 'goodbye_message', 'muted_role', 'ticket_category',
-    'ticket_log_channel', 'level_enabled', 'currency_enabled', 'automod_enabled',
+    'ticket_log_channel', 'ticket_config', 'level_enabled', 'currency_enabled', 'automod_enabled',
     'level_xp_min', 'level_xp_max', 'level_cooldown', 'level_message',
     'memberstats_enabled', 'memberstats_channel', 'application_review_channel',
     'tempvoice_category', 'tempvoice_join_channel', 'tempvoice_panel_channel'
