@@ -15,12 +15,13 @@ log = logging.getLogger(__name__)
 
 
 class Music(commands.Cog):
-    """Lavalink-backed music with a persistent-in-message control panel."""
+    """Lavalink-backed music with a live-in-place control panel."""
 
     def __init__(self, bot):
         self.bot = bot
         self.queues = defaultdict(deque)
         self.requesters = {}
+        self.track_requesters = {}
         self.loop_modes = defaultdict(lambda: "off")
         self.panel_messages = {}
 
@@ -71,9 +72,6 @@ class Music(commands.Cog):
                 return None
         return player
 
-    def _same_voice(self, ctx, player):
-        return bool(player and player.channel and ctx.author.voice and ctx.author.voice.channel == player.channel)
-
     @staticmethod
     def _duration(ms):
         seconds = max(0, int(ms or 0) // 1000)
@@ -95,7 +93,8 @@ class Music(commands.Cog):
         return f"`{self._duration(position_ms)}` {self._bar(position_ms, length)} `{self._duration(length)}`"
 
     def _embed(self, guild_id):
-        player = self.bot.get_guild(guild_id).voice_client if self.bot.get_guild(guild_id) else None
+        guild = self.bot.get_guild(guild_id)
+        player = guild.voice_client if guild else None
         if not isinstance(player, wavelink.Player) or not player.current:
             return discord.Embed(title="🎵 LightCore Music", description="Nothing is playing right now.", color=discord.Color.blurple())
         track = player.current
@@ -107,8 +106,7 @@ class Music(commands.Cog):
         embed.add_field(name="Progress", value=self._progress(player), inline=False)
         embed.add_field(name="Requester", value=f"<@{requester}>" if isinstance(requester, int) else str(requester), inline=True)
         embed.add_field(name="Loop", value=self.loop_modes[guild_id], inline=True)
-        queue = self.queues[guild_id]
-        embed.add_field(name="Queue", value=f"{len(queue)} track(s)", inline=True)
+        embed.add_field(name="Queue", value=f"{len(self.queues[guild_id])} track(s)", inline=True)
         embed.set_footer(text="Only members in the bot's voice channel can use these controls.")
         return embed
 
@@ -134,17 +132,15 @@ class Music(commands.Cog):
         queue = self.queues[guild_id]
         if self.loop_modes[guild_id] == "track" and player.current:
             track = player.current
+            self.requesters[guild_id] = self.track_requesters.get(id(track), self.requesters.get(guild_id, "Unknown"))
             await player.play(track)
             await self._update_panel(guild_id)
             return
         if queue:
             track = queue.popleft()
-            self.requesters[guild_id] = getattr(track, "_lightcore_requester", self.requesters.get(guild_id, "Unknown"))
+            self.requesters[guild_id] = self.track_requesters.get(id(track), self.requesters.get(guild_id, "Unknown"))
             await player.play(track)
             await self._update_panel(guild_id)
-            return
-        if self.loop_modes[guild_id] == "queue":
-            # Queue-loop tracks are reinserted by the track-end handler.
             return
         await self._update_panel(guild_id)
 
@@ -172,7 +168,7 @@ class Music(commands.Cog):
             await ctx.send("🔎 No playable track was found. Try a title, artist + title, or supported URL.")
             return
         track = tracks[0]
-        setattr(track, "_lightcore_requester", ctx.author.id)
+        self.track_requesters[id(track)] = ctx.author.id
         try:
             if player.current:
                 self.queues[ctx.guild.id].append(track)
@@ -191,7 +187,7 @@ class Music(commands.Cog):
         player = ctx.voice_client
         if not isinstance(player, wavelink.Player) or not player.current:
             return await ctx.send("❌ Nothing is currently playing.")
-        if not self._same_voice(ctx, player):
+        if not ctx.author.voice or ctx.author.voice.channel != player.channel:
             return await ctx.send("❌ Join the same voice channel as LightCore to control music.")
         await player.pause(not player.paused)
         await self._update_panel(ctx.guild.id)
@@ -201,7 +197,7 @@ class Music(commands.Cog):
         player = ctx.voice_client
         if not isinstance(player, wavelink.Player) or not player.current:
             return await ctx.send("❌ Nothing is currently playing.")
-        if not self._same_voice(ctx, player):
+        if not ctx.author.voice or ctx.author.voice.channel != player.channel:
             return await ctx.send("❌ Join the same voice channel as LightCore to control music.")
         await player.skip()
 
@@ -210,7 +206,7 @@ class Music(commands.Cog):
         player = ctx.voice_client
         if not isinstance(player, wavelink.Player):
             return await ctx.send("❌ Music is not connected.")
-        if not self._same_voice(ctx, player):
+        if not ctx.author.voice or ctx.author.voice.channel != player.channel:
             return await ctx.send("❌ Join the same voice channel as LightCore to control music.")
         self.queues[ctx.guild.id].clear()
         self.loop_modes[ctx.guild.id] = "off"
@@ -222,7 +218,7 @@ class Music(commands.Cog):
         player = ctx.voice_client
         if not isinstance(player, wavelink.Player):
             return await ctx.send("❌ Music is not connected.")
-        if not self._same_voice(ctx, player):
+        if not ctx.author.voice or ctx.author.voice.channel != player.channel:
             return await ctx.send("❌ Join the same voice channel as LightCore to control music.")
         await player.set_volume(max(0, min(100, value)))
         await self._update_panel(ctx.guild.id)
@@ -236,10 +232,10 @@ class Music(commands.Cog):
 
     @commands.hybrid_command(name="queue", description="Show the current music queue.")
     async def queue(self, ctx):
-        player = ctx.voice_client
-        if not isinstance(player, wavelink.Player) or not self.queues[ctx.guild.id]:
+        queue = self.queues[ctx.guild.id]
+        if not queue:
             return await ctx.send("📜 The music queue is empty.")
-        lines = [f"**{i}.** {t.title} — `{self._duration(t.length)}`" for i, t in enumerate(list(self.queues[ctx.guild.id])[:15], 1)]
+        lines = [f"**{i}.** {t.title} — `{self._duration(t.length)}`" for i, t in enumerate(list(queue)[:15], 1)]
         await ctx.send(embed=discord.Embed(title="📜 Music Queue", description="\n".join(lines), color=discord.Color.blurple()))
 
     @commands.hybrid_command(name="leave", description="Disconnect the Lavalink player.")
@@ -294,14 +290,9 @@ class MusicPanel(discord.ui.View):
         self.cog = cog
         self.guild_id = guild_id
         controls = [
-            ("Pause/Resume", "⏯️", "pause"),
-            ("Skip", "⏭️", "skip"),
-            ("Stop", "⏹️", "stop"),
-            ("Shuffle", "🔀", "shuffle"),
-            ("Loop", "🔁", "loop"),
-            ("Vol -", "🔉", "voldown"),
-            ("Vol +", "🔊", "volup"),
-            ("Queue", "📜", "queue"),
+            ("Pause/Resume", "⏯️", "pause"), ("Skip", "⏭️", "skip"), ("Stop", "⏹️", "stop"),
+            ("Shuffle", "🔀", "shuffle"), ("Loop", "🔁", "loop"), ("Vol -", "🔉", "voldown"),
+            ("Vol +", "🔊", "volup"), ("Queue", "📜", "queue"),
         ]
         for label, emoji, action in controls:
             button = discord.ui.Button(label=label, emoji=emoji, style=discord.ButtonStyle.secondary, custom_id=f"lightcore:music:{guild_id}:{action}")
