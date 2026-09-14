@@ -232,6 +232,28 @@ def init_db():
                 uses INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (guild_id, code)
             );
+            CREATE TABLE IF NOT EXISTS activity_stats (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                message_count INTEGER NOT NULL DEFAULT 0,
+                voice_seconds INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (guild_id, user_id)
+            );
+            CREATE TABLE IF NOT EXISTS activity_buckets (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                bucket_start TEXT NOT NULL,
+                message_count INTEGER NOT NULL DEFAULT 0,
+                voice_seconds INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (guild_id, user_id, bucket_start)
+            );
+            CREATE TABLE IF NOT EXISTS activity_voice_sessions (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                joined_at TEXT NOT NULL,
+                channel_id INTEGER,
+                PRIMARY KEY (guild_id, user_id)
+            );
             CREATE INDEX IF NOT EXISTS idx_warnings_guild_user ON warnings(guild_id, user_id);
             CREATE INDEX IF NOT EXISTS idx_moderation_logs_guild_time ON moderation_logs(guild_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_event_logs_guild_time ON event_logs(guild_id, created_at);
@@ -240,6 +262,8 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_tickets_guild_status ON tickets(guild_id, status);
             CREATE INDEX IF NOT EXISTS idx_giveaways_guild_status ON giveaways(guild_id, status);
             CREATE INDEX IF NOT EXISTS idx_temp_voice_guild_status ON temp_voice_channels(guild_id, status);
+            CREATE INDEX IF NOT EXISTS idx_activity_buckets_guild_bucket ON activity_buckets(guild_id, bucket_start);
+            CREATE INDEX IF NOT EXISTS idx_activity_buckets_guild_user ON activity_buckets(guild_id, user_id, bucket_start);
             """
         )
         _add_column(db, "giveaway_entries", "weight", "INTEGER NOT NULL DEFAULT 1")
