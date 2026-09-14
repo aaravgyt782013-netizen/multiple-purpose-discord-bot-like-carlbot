@@ -254,6 +254,14 @@ def init_db():
                 channel_id INTEGER,
                 PRIMARY KEY (guild_id, user_id)
             );
+            CREATE TABLE IF NOT EXISTS marriages (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                partner_id INTEGER NOT NULL,
+                married_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (guild_id, user_id),
+                UNIQUE (guild_id, partner_id)
+            );
             CREATE INDEX IF NOT EXISTS idx_warnings_guild_user ON warnings(guild_id, user_id);
             CREATE INDEX IF NOT EXISTS idx_moderation_logs_guild_time ON moderation_logs(guild_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_event_logs_guild_time ON event_logs(guild_id, created_at);
@@ -272,6 +280,9 @@ def init_db():
         _add_column(db, "temp_voice_channels", "user_limit", "INTEGER NOT NULL DEFAULT 0")
         _add_column(db, "temp_voice_channels", "panel_message_id", "INTEGER")
         _add_column(db, "guild_settings", "ticket_config", "TEXT")
+        _add_column(db, "pets", "xp", "INTEGER NOT NULL DEFAULT 0")
+        _add_column(db, "shop_items", "role_id", "INTEGER")
+        _add_column(db, "shop_items", "stock", "INTEGER NOT NULL DEFAULT -1")
 
 
 def ensure_guild(guild_id):
