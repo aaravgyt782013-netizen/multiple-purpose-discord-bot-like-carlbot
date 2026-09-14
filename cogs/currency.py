@@ -11,7 +11,7 @@ class Currency(commands.Cog):
         with connect() as db:
             db.execute("INSERT OR IGNORE INTO balances(guild_id,user_id,balance) VALUES(?,?,0)", (guild_id, user_id))
 
-    @commands.hybrid_command(name="balance")
+    @commands.hybrid_command(name="balance", aliases=["bal"], description="Show a member's LightCoin balance.")
     async def balance(self, ctx, member: discord.Member = None):
         member = member or ctx.author
         self.ensure(ctx.guild.id, member.id)
