@@ -29,15 +29,23 @@ async def load_extensions():
 
 def _lavalink_env_status():return bool(LAVALINK_URI),bool(LAVALINK_PASSWORD),bool(LAVALINK_NAME)
 async def connect_lavalink(client):
-    uri_ok,password_ok,name_ok=_lavalink_env_status();log.info("Lavalink env check: URI=%s PASSWORD=%s NAME=%s","SET" if uri_ok else "MISSING","SET" if password_ok else "MISSING","SET" if name_ok else "MISSING")
-    if not uri_ok or not password_ok or not name_ok:return log.error("Lavalink NOT configured: all three Lavalink env vars must be non-empty.")
+    uri_ok,password_ok,name_ok=_lavalink_env_status()
+    log.info("Lavalink config: LAVALINK_URI=%r (non-empty=%s); LAVALINK_PASSWORD=%s (non-empty); LAVALINK_NAME=%r (non-empty=%s)",LAVALINK_URI,uri_ok,"SET" if password_ok else "MISSING",LAVALINK_NAME,name_ok)
+    if not uri_ok or not password_ok or not name_ok:
+        log.error("Lavalink startup connection skipped: one or more required env vars are empty.")
+        return
     for attempt,delay in enumerate((2,5,10),1):
         try:
-            node=wavelink.Node(identifier=LAVALINK_NAME,uri=LAVALINK_URI,password=LAVALINK_PASSWORD,retries=3);await wavelink.Pool.connect(nodes=[node],client=client);log.info("Lavalink connection attempt %d/3 submitted: %s",attempt,LAVALINK_NAME);return
+            node=wavelink.Node(identifier=LAVALINK_NAME,uri=LAVALINK_URI,password=LAVALINK_PASSWORD,retries=3)
+            await wavelink.Pool.connect(nodes=[node],client=client)
+            log.info("Lavalink connection attempt %d/3 submitted successfully: node=%r uri=%r",attempt,LAVALINK_NAME,LAVALINK_URI)
+            return
         except Exception as exc:
-            log.exception("Lavalink connection attempt %d/3 failed: %s",attempt,exc)
-            if attempt<3:log.warning("Retrying Lavalink connection in %ss...",delay);await asyncio.sleep(delay)
-    log.error("Lavalink FAILED after 3 startup attempts.")
+            log.exception("Lavalink connection attempt %d/3 failed with %s: %s",attempt,type(exc).__name__,exc)
+            if attempt<3:
+                log.warning("Retrying Lavalink connection in %ss...",delay)
+                await asyncio.sleep(delay)
+    log.error("Lavalink FAILED after 3 startup attempts; /play will remain unavailable until a node connects.")
 
 def validate_command_names():
     prefix_names={}
