@@ -25,50 +25,19 @@ CATEGORIES = [
 CATEGORY_MAP = {name: (emoji, cogs) for name, emoji, cogs in CATEGORIES}
 
 COMMAND_PERMISSIONS = {
-    "ban": "Ban Members",
-    "kick": "Kick Members",
-    "mute": "Moderate Members",
-    "warn": "Moderate Members",
-    "purge": "Manage Messages",
-    "warnings": "Moderate Members",
-    "automod": "Manage Server",
-    "setlog": "Manage Server",
-    "levelconfig": "Manage Server",
-    "levelconfig rate": "Manage Server",
-    "levelconfig cooldown": "Manage Server",
-    "levelconfig message": "Manage Server",
-    "levelconfig reward": "Manage Server",
-    "levelconfig enable": "Manage Server",
-    "ticketsetup": "Manage Channels",
-    "ticketpanel": "Manage Channels",
-    "setticketcategory": "Manage Server",
-    "setticketlog": "Manage Server",
-    "close": "Manage Channels",
-    "ticketcategory": "Manage Channels",
-    "selfrole": "Manage Roles",
-    "shopadd": "Manage Server",
-    "shopremove": "Manage Server",
-    "giveaway": "Manage Server",
-    "giveawaybonus": "Manage Server",
-    "giveawaypick": "Manage Server",
-    "customadd": "Manage Server",
-    "customremove": "Manage Server",
-    "embed": "Manage Messages",
-    "announce": "Manage Messages",
-    "panel": "Manage Server",
-    "setwelcome": "Manage Server",
-    "setgoodbye": "Manage Server",
-    "tempvoice": "Manage Channels",
-    "tempvoice setup": "Manage Channels",
-    "tempvoice_disable": "Manage Channels",
-    "adminpanel": "Manage Server",
-    "memberstats": "Manage Server",
-    "growth": "Manage Server",
-    "retention": "Manage Server",
-    "applicationcreate": "Manage Server",
-    "applicationpanel": "Manage Server",
-    "applicationreviewchannel": "Manage Server",
-    "applications": "Manage Server",
+    "ban": "Ban Members", "kick": "Kick Members", "mute": "Moderate Members", "warn": "Moderate Members",
+    "purge": "Manage Messages", "warnings": "Moderate Members", "automod": "Manage Server", "setlog": "Manage Server",
+    "levelconfig": "Manage Server", "levelconfig rate": "Manage Server", "levelconfig cooldown": "Manage Server",
+    "levelconfig message": "Manage Server", "levelconfig reward": "Manage Server", "levelconfig enable": "Manage Server",
+    "ticketsetup": "Manage Channels", "ticketcategory": "Manage Channels", "ticketcategory list": "Manage Channels",
+    "ticketcategory add": "Manage Channels", "ticketcategory delete": "Manage Channels",
+    "selfrole": "Manage Roles", "shopadd": "Manage Server", "shopremove": "Manage Server",
+    "giveaway": "Manage Server", "giveawaybonus": "Manage Server", "giveawaypick": "Manage Server",
+    "customadd": "Manage Server", "customremove": "Manage Server", "embed": "Manage Messages", "announce": "Manage Messages",
+    "panel": "Manage Server", "setwelcome": "Manage Server", "setgoodbye": "Manage Server", "tempvoice": "Manage Channels",
+    "tempvoice setup": "Manage Channels", "tempvoice_disable": "Manage Channels", "adminpanel": "Manage Server",
+    "memberstats": "Manage Server", "growth": "Manage Server", "retention": "Manage Server", "applicationcreate": "Manage Server",
+    "applicationpanel": "Manage Server", "applicationreviewchannel": "Manage Server", "applications": "Manage Server",
 }
 
 
@@ -88,55 +57,19 @@ class HelpView(discord.ui.View):
 
     def rebuild(self):
         self.clear_items()
-
-        options = [
-            discord.SelectOption(
-                label="Home",
-                value="__home__",
-                emoji="🏠",
-                description="Return to LightCore home",
-            )
-        ]
-        options += [
-            discord.SelectOption(
-                label=name,
-                value=name,
-                emoji=emoji,
-                description=f"View {name} commands",
-            )
-            for name, emoji, _ in CATEGORIES
-        ]
-
-        select = discord.ui.Select(
-            placeholder="Choose a help category…",
-            options=options,
-        )
+        options = [discord.SelectOption(label="Home", value="__home__", emoji="🏠", description="Return to LightCore home")]
+        options += [discord.SelectOption(label=name, value=name, emoji=emoji, description=f"View {name} commands") for name, emoji, _ in CATEGORIES]
+        select = discord.ui.Select(placeholder="Choose a help category…", options=options)
         select.callback = self.select_callback
         self.add_item(select)
-
-        home = discord.ui.Button(
-            label="Home",
-            emoji="🏠",
-            style=discord.ButtonStyle.secondary,
-        )
+        home = discord.ui.Button(label="Home", emoji="🏠", style=discord.ButtonStyle.secondary)
         home.callback = self.home_callback
         self.add_item(home)
-
         if self.category:
             pages = max(1, math.ceil(len(self.entries()) / 8))
             if pages > 1:
-                back = discord.ui.Button(
-                    label="Back",
-                    emoji="◀️",
-                    style=discord.ButtonStyle.primary,
-                    disabled=self.page <= 0,
-                )
-                nxt = discord.ui.Button(
-                    label="Next",
-                    emoji="▶️",
-                    style=discord.ButtonStyle.primary,
-                    disabled=self.page >= pages - 1,
-                )
+                back = discord.ui.Button(label="Back", emoji="◀️", style=discord.ButtonStyle.primary, disabled=self.page <= 0)
+                nxt = discord.ui.Button(label="Next", emoji="▶️", style=discord.ButtonStyle.primary, disabled=self.page >= pages - 1)
                 back.callback = self.back_callback
                 nxt.callback = self.next_callback
                 self.add_item(back)
@@ -144,10 +77,7 @@ class HelpView(discord.ui.View):
 
     async def interaction_check(self, interaction):
         if interaction.user.id != self.author_id:
-            await interaction.response.send_message(
-                "This help menu belongs to the user who opened it.",
-                ephemeral=True,
-            )
+            await interaction.response.send_message("This help menu belongs to the user who opened it.", ephemeral=True)
             return False
         return True
 
@@ -155,15 +85,7 @@ class HelpView(discord.ui.View):
         if not self.category:
             return []
         cogs = CATEGORY_MAP[self.category][1]
-        return sorted(
-            [
-                command
-                for command in self.bot.walk_commands()
-                if not command.hidden
-                and (command.cog_name or "Core") in cogs
-            ],
-            key=lambda command: command.qualified_name.lower(),
-        )
+        return sorted([command for command in self.bot.walk_commands() if not command.hidden and (command.cog_name or "Core") in cogs], key=lambda command: command.qualified_name.lower())
 
     @staticmethod
     def syntax(command):
@@ -189,29 +111,11 @@ class HelpView(discord.ui.View):
         return embed
 
     def home_embed(self):
-        embed = discord.Embed(
-            title="LightCore • Help",
-            description=(
-                "Select a category to browse commands, syntax, descriptions and short aliases."
-            ),
-            color=discord.Color.blurple(),
-        )
+        embed = discord.Embed(title="LightCore • Help", description="Select a category to browse commands, syntax, descriptions and short aliases.", color=discord.Color.blurple())
         self.brand(embed)
-        embed.add_field(
-            name="📖 Usage",
-            value=(
-                "Use `.help` to open this interactive menu. "
-                "Commands are grouped automatically from their loaded cogs, "
-                "so newly added commands appear in their matching category."
-            ),
-            inline=False,
-        )
+        embed.add_field(name="📖 Usage", value="Use `.help` to open this interactive menu. Commands are grouped automatically from their loaded cogs, so newly added commands appear in their matching category.", inline=False)
         for name, emoji, _ in CATEGORIES:
-            embed.add_field(
-                name=f"{emoji} {name}",
-                value="Use the dropdown below.",
-                inline=True,
-            )
+            embed.add_field(name=f"{emoji} {name}", value="Use the dropdown below.", inline=True)
         embed.set_footer(text="LightCore • Interactive Help • Expires after 3 minutes")
         return embed
 
@@ -220,24 +124,12 @@ class HelpView(discord.ui.View):
         entries = self.entries()
         pages = max(1, math.ceil(len(entries) / 8))
         self.page = max(0, min(self.page, pages - 1))
-        current = entries[self.page * 8 : (self.page + 1) * 8]
-
-        embed = discord.Embed(
-            title=f"{emoji} LightCore • {self.category}",
-            color=discord.Color.blurple(),
-        )
+        current = entries[self.page * 8:(self.page + 1) * 8]
+        embed = discord.Embed(title=f"{emoji} LightCore • {self.category}", color=discord.Color.blurple())
         self.brand(embed)
-
         for command in current:
-            description = (command.description or "No description provided.").replace(
-                "\n", " "
-            )
-            embed.add_field(
-                name=f"`{self.syntax(command)}`",
-                value=description + self.permission_note(command),
-                inline=False,
-            )
-
+            description = (command.description or "No description provided.").replace("\n", " ")
+            embed.add_field(name=f"`{self.syntax(command)}`", value=description + self.permission_note(command), inline=False)
         if not current:
             embed.description = "No commands are registered in this category yet."
         embed.set_footer(text=f"Page {self.page + 1}/{pages} • LightCore")
@@ -248,10 +140,7 @@ class HelpView(discord.ui.View):
         self.category = None if value == "__home__" else value
         self.page = 0
         self.rebuild()
-        await interaction.response.edit_message(
-            embed=self.home_embed() if not self.category else self.category_embed(),
-            view=self,
-        )
+        await interaction.response.edit_message(embed=self.home_embed() if not self.category else self.category_embed(), view=self)
 
     async def home_callback(self, interaction):
         self.category = None
@@ -291,11 +180,7 @@ class Core(commands.Cog):
         try:
             view.message = await ctx.send(embed=view.home_embed(), view=view)
         except discord.Forbidden:
-            await ctx.send(
-                "🌐 **LightCore Help**\n"
-                "Use `.help` to open the interactive help menu.\n"
-                "If the embed does not appear, give LightCore the **Embed Links** permission."
-            )
+            await ctx.send("🌐 **LightCore Help**\nUse `.help` to open the interactive help menu.\nIf the embed does not appear, give LightCore the **Embed Links** permission.")
 
     @commands.command(name="ping")
     async def ping(self, ctx):
@@ -303,32 +188,15 @@ class Core(commands.Cog):
 
     @commands.command(name="about")
     async def about(self, ctx):
-        embed = self.brand(
-            discord.Embed(
-                title="💠 LightCore",
-                description=(
-                    "All-in-one Discord moderation, community, leveling, "
-                    "tickets, music and utility bot."
-                ),
-                color=discord.Color.blurple(),
-            )
-        )
+        embed = self.brand(discord.Embed(title="💠 LightCore", description="All-in-one Discord moderation, community, leveling, tickets, music and utility bot.", color=discord.Color.blurple()))
         links = []
         support_url = os.getenv("SUPPORT_SERVER_URL")
         if support_url:
             links.append(f"[Support Server]({support_url})")
-        for label, key in (
-            ("Privacy Policy", "PRIVACY_POLICY_URL"),
-            ("Terms of Service", "TERMS_URL"),
-            ("Invite LightCore", "INVITE_URL"),
-        ):
+        for label, key in (("Privacy Policy", "PRIVACY_POLICY_URL"), ("Terms of Service", "TERMS_URL"), ("Invite LightCore", "INVITE_URL")):
             if os.getenv(key):
                 links.append(f"[{label}]({os.getenv(key)})")
-        embed.add_field(
-            name="🔗 Public links",
-            value=" • ".join(links) if links else "Public links are not configured yet.",
-            inline=False,
-        )
+        embed.add_field(name="🔗 Public links", value=" • ".join(links) if links else "Public links are not configured yet.", inline=False)
         await ctx.send(embed=embed)
 
 
