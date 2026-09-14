@@ -1,0 +1,29 @@
+server:
+  port: 2333
+  address: 0.0.0.0
+
+lavalink:
+  server:
+    password: CHANGE_ME
+    sources:
+      youtube: false
+      bandcamp: true
+      soundcloud: true
+      twitch: true
+      vimeo: true
+      http: true
+      local: false
+
+plugins:
+  # Lavalink v4 no longer recommends the deprecated built-in YouTube source.
+  # Add a maintained YouTube source plugin in your Lavalink deployment if you need YouTube searches.
+
+metrics:
+  prometheus:
+    enabled: false
+    endpoint: /metrics
+
+logging:
+  level:
+    root: INFO
+    lavalink: INFO
