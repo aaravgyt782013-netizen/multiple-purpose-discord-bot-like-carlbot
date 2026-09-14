@@ -21,11 +21,15 @@ class TempVoice(commands.Cog):
             channel = self.bot.get_channel(row["channel_id"])
             if isinstance(channel, discord.VoiceChannel):
                 self.owners[channel.id] = row["owner_id"]
+                self.bot.add_view(TempVoicePanel(self, channel.id, row["owner_id"]))
             else:
                 stale.append(row["channel_id"])
         if stale:
             with connect() as db:
-                db.executemany("UPDATE temp_voice_channels SET status='deleted' WHERE channel_id=?", ((cid,) for cid in stale))
+                db.executemany(
+                    "UPDATE temp_voice_channels SET status='deleted' WHERE channel_id=?",
+                    ((cid,) for cid in stale),
+                )
 
     @commands.hybrid_command(name="tempvoice_setup", description="Configure a Join-to-Create temporary voice channel.")
     @commands.has_guild_permissions(manage_channels=True)
@@ -62,22 +66,40 @@ class TempVoice(commands.Cog):
                 (channel.id, member.guild.id, member.id),
             )
         await member.move_to(channel)
-        await self._send_panel(channel, member)
+        panel = TempVoicePanel(self, channel.id, member.id)
+        self.bot.add_view(panel)
+        await self._send_panel(channel, member, panel)
 
-    async def _send_panel(self, channel, owner):
+    async def _send_panel(self, channel, owner, panel):
         embed = discord.Embed(
             title="LightCore • Temp Voice",
             description="Use the buttons below to manage your temporary voice channel.",
             color=discord.Color.blurple(),
         )
         embed.add_field(name="Owner", value=owner.mention)
-        await channel.send(embed=embed, view=TempVoicePanel(self, channel.id, owner.id))
+        await channel.send(embed=embed, view=panel)
 
 
 class TempVoicePanel(discord.ui.View):
     def __init__(self, cog, channel_id, owner_id):
         super().__init__(timeout=None)
         self.cog, self.channel_id, self.owner_id = cog, channel_id, owner_id
+        buttons = [
+            ("Rename", "✏️", discord.ButtonStyle.primary, self.rename),
+            ("Lock", "🔒", discord.ButtonStyle.secondary, self.lock),
+            ("Unlock", "🔓", discord.ButtonStyle.success, self.unlock),
+            ("Limit", "👥", discord.ButtonStyle.primary, self.limit),
+            ("Transfer", "👑", discord.ButtonStyle.secondary, self.transfer),
+        ]
+        for label, emoji, style, callback in buttons:
+            button = discord.ui.Button(
+                label=label,
+                emoji=emoji,
+                style=style,
+                custom_id=f"lightcore:tempvoice:{channel_id}:{label.lower()}",
+            )
+            button.callback = callback
+            self.add_item(button)
 
     async def interaction_check(self, interaction):
         if interaction.user.id != self.owner_id:
@@ -85,28 +107,27 @@ class TempVoicePanel(discord.ui.View):
             return False
         return True
 
-    @discord.ui.button(label="Rename", style=discord.ButtonStyle.primary, emoji="✏️")
-    async def rename(self, interaction, button):
+    async def rename(self, interaction):
         await interaction.response.send_modal(RenameModal(self.channel_id))
 
-    @discord.ui.button(label="Lock", style=discord.ButtonStyle.secondary, emoji="🔒")
-    async def lock(self, interaction, button):
+    async def lock(self, interaction):
         channel = interaction.guild.get_channel(self.channel_id)
+        if not channel:
+            return await interaction.response.send_message("Channel no longer exists.", ephemeral=True)
         await channel.set_permissions(interaction.guild.default_role, connect=False)
         await interaction.response.send_message("🔒 Channel locked.", ephemeral=True)
 
-    @discord.ui.button(label="Unlock", style=discord.ButtonStyle.success, emoji="🔓")
-    async def unlock(self, interaction, button):
+    async def unlock(self, interaction):
         channel = interaction.guild.get_channel(self.channel_id)
+        if not channel:
+            return await interaction.response.send_message("Channel no longer exists.", ephemeral=True)
         await channel.set_permissions(interaction.guild.default_role, connect=True)
         await interaction.response.send_message("🔓 Channel unlocked.", ephemeral=True)
 
-    @discord.ui.button(label="Limit", style=discord.ButtonStyle.primary, emoji="👥")
-    async def limit(self, interaction, button):
+    async def limit(self, interaction):
         await interaction.response.send_modal(LimitModal(self.channel_id))
 
-    @discord.ui.button(label="Transfer", style=discord.ButtonStyle.secondary, emoji="👑")
-    async def transfer(self, interaction, button):
+    async def transfer(self, interaction):
         await interaction.response.send_modal(TransferModal(self.cog, self.channel_id, self.owner_id, self))
 
 
