@@ -386,7 +386,17 @@ class ActivityStats(commands.Cog):
         await self._send_user_stats(ctx, ctx.author, "📊 My Activity Statistics")
 
     @commands.hybrid_command(name="ustats", description="Show another user's visual activity statistics card.")
-    async def ustats(self, ctx, member: discord.Member):
+    async def ustats(self, ctx, member: discord.Member, *, trailing: str = ""):
+        """Show a user's stats while tolerating harmless trailing punctuation/text.
+
+        Discord users commonly append punctuation such as ``!!`` to command input.
+        The old single-member signature made that input raise TooManyArguments before
+        the callback ran, which fell through to the generic internal-error handler.
+        """
+        if trailing.strip():
+            # Preserve the exact command compatibility requested by users without
+            # changing the selected member. The suffix is intentionally ignored.
+            pass
         await self._send_user_stats(ctx, member, f"📊 {member.display_name}'s Activity Statistics")
 
 
