@@ -231,7 +231,7 @@ class ActivityStats(commands.Cog):
                 ).fetchone()[0]
             else:
                 rows = db.execute(
-                    f"SELECT user_id,{column} AS value FROM activity_stats WHERE guild_id=? AND {column}>0 ORDER BY value DESC,user_id ASC LIMIT ? OFFSET ?",
+                    f"SELECT user_id,{column} AS value FROM activity_stats WHERE guild_id=? AND {column}>0 ORDER BY {column} DESC,user_id ASC LIMIT ? OFFSET ?",
                     (guild_id, PAGE_SIZE, offset),
                 ).fetchall()
                 total = db.execute(f"SELECT COUNT(*) FROM activity_stats WHERE guild_id=? AND {column}>0", (guild_id,)).fetchone()[0]
@@ -302,11 +302,19 @@ class ActivityStats(commands.Cog):
                 ).fetchone()[0] + 1
         return int(value or 0), int(rank)
 
+    async def _period_stats(self, guild_id, user_id):
+        weekly_messages, _ = await self._rank(guild_id, user_id, "messages", "weekly")
+        monthly_messages, _ = await self._rank(guild_id, user_id, "messages", "monthly")
+        weekly_voice, _ = await self._rank(guild_id, user_id, "voice", "weekly")
+        monthly_voice, _ = await self._rank(guild_id, user_id, "voice", "monthly")
+        return weekly_messages, monthly_messages, weekly_voice, monthly_voice
+
     async def stats_card(self, member):
         guild_id = member.guild.id
         messages, message_rank = await self._rank(guild_id, member.id, "messages")
         voice_seconds, voice_rank = await self._rank(guild_id, member.id, "voice")
-        image = Image.new("RGB", (1000, 520), (18, 18, 24))
+        weekly_messages, monthly_messages, weekly_voice, monthly_voice = await self._period_stats(guild_id, member.id)
+        image = Image.new("RGB", (1000, 600), (18, 18, 24))
         draw = ImageDraw.Draw(image)
         big = ImageFont.load_default(size=34)
         font = ImageFont.load_default(size=25)
@@ -325,11 +333,21 @@ class ActivityStats(commands.Cog):
         draw.text((560, 275), "VOICE TIME", fill="white", font=font)
         draw.text((560, 325), format_voice(voice_seconds), fill="white", font=big)
         draw.text((560, 370), f"Server rank #{voice_rank}", fill=(180, 180, 195), font=small)
-        draw.text((55, 465), "LIGHTCORE • ACTIVITY STATS", fill=(160, 160, 175), font=small)
+        draw.text((55, 455), f"7 DAYS  •  {weekly_messages:,} msgs  •  {format_voice(weekly_voice)} voice", fill=(180, 180, 195), font=small)
+        draw.text((55, 490), f"30 DAYS •  {monthly_messages:,} msgs  •  {format_voice(monthly_voice)} voice", fill=(180, 180, 195), font=small)
+        draw.text((55, 550), "LIGHTCORE • ACTIVITY STATS", fill=(160, 160, 175), font=small)
         out = io.BytesIO()
         image.save(out, "PNG")
         out.seek(0)
         return out
+
+    async def _send_user_stats(self, ctx, member, title):
+        await self.flush()
+        card = await self.stats_card(member)
+        embed = discord.Embed(title=title, color=discord.Color.blurple())
+        embed.set_image(url="attachment://lightcore-activity.png")
+        embed.set_footer(text="LightCore • Activity Statistics")
+        await ctx.send(embed=embed, file=discord.File(card, filename="lightcore-activity.png"))
 
     @commands.hybrid_group(name="top", invoke_without_command=True, description="View activity leaderboards.")
     async def top(self, ctx):
@@ -363,15 +381,13 @@ class ActivityStats(commands.Cog):
         message = await ctx.send(embed=embed, file=file, view=view)
         view.message = message
 
-    @commands.hybrid_command(name="mystats", description="Show a visual activity statistics card.")
-    async def mystats(self, ctx, member: discord.Member = None):
-        member = member or ctx.author
-        await self.flush()
-        card = await self.stats_card(member)
-        embed = discord.Embed(title="📊 My Activity Statistics", color=discord.Color.blurple())
-        embed.set_image(url="attachment://lightcore-activity.png")
-        embed.set_footer(text="LightCore • Activity Statistics")
-        await ctx.send(embed=embed, file=discord.File(card, filename="lightcore-activity.png"))
+    @commands.hybrid_command(name="mystats", description="Show your visual activity statistics card.")
+    async def mystats(self, ctx):
+        await self._send_user_stats(ctx, ctx.author, "📊 My Activity Statistics")
+
+    @commands.hybrid_command(name="ustats", description="Show another user's visual activity statistics card.")
+    async def ustats(self, ctx, member: discord.Member):
+        await self._send_user_stats(ctx, member, f"📊 {member.display_name}'s Activity Statistics")
 
 
 async def setup(bot):
