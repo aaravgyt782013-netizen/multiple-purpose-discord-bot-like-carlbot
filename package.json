@@ -1,8 +1,21 @@
 {
-  "name": "lightcore-python-migration",
+  "name": "lightcore",
+  "version": "1.0.0",
   "private": true,
-  "description": "LightCore is a Python discord.py bot.",
+  "description": "LightCore all-in-one Discord.js bot with Minecraft server monitoring.",
+  "main": "src/index.js",
   "scripts": {
-    "start": "python main.py"
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "dependencies": {
+    "@discordjs/voice": "^0.19.0",
+    "discord.js": "^14.27.0",
+    "dotenv": "^17.2.2",
+    "minecraft-protocol": "^1.68.0",
+    "play-dl": "^1.9.7"
   }
 }
