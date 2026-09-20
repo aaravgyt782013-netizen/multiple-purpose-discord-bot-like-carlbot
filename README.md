@@ -286,3 +286,23 @@ A real Discord login/synchronization test still requires a valid runtime with th
 ## License
 
 Private project / all rights reserved unless the repository owner chooses another license.
+
+
+## Minecraft Server Status
+
+LightCore now includes Minecraft Java server monitoring:
+
+- `/mcstatus server:<address>` — status, MOTD, version, protocol, players, latency, public numeric IP and SRV target.
+- `/mcplayers server:<address>` — player sample returned by the server.
+- `/mcip server:<address>` — public DNS/IP and SRV information.
+- `/mcmonitor server:<address>` — creates an automatically updating status embed.
+- `/mcunmonitor server:<address>` — removes a monitor.
+- `/mcmonitors` — lists monitors in the server.
+- Refresh and Players buttons are included on status embeds.
+- Monitor interval is controlled by `MC_STATUS_INTERVAL_SECONDS` (minimum 30 seconds).
+
+The status checker uses Minecraft Server List Ping. The player list is limited to the sample a server chooses to expose; it does not provide a private or hidden player list.
+
+The numeric IP is the publicly resolvable address. If a server uses Velocity/BungeeCord or another proxy, that address can be the public proxy endpoint rather than a private backend. The bot does not attempt to bypass proxy or firewall protections.
+
+The Java status module uses the `minecraft-protocol` package, which supports Minecraft server status ping and SRV-aware networking. 
