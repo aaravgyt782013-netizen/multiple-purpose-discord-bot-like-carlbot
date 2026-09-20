@@ -1,96 +1,65 @@
 require('dotenv').config();
-const fs = require('fs');
-const path = require('path');
-const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require('@discordjs/voice');
-const play = require('play-dl');
+const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
 const minecraftStatus = require('./minecraft-status');
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DATA_FILE = path.join(DATA_DIR, 'database.json');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, '{}');
-let db = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8') || '{}');
-const save = () => fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const BOT_NAME = (process.env.BOT_NAME || '').trim();
+const CLIENT_ID = process.env.CLIENT_ID || '';
 
-function guildData(id) {
-  return db[id] ||= { prefix:'!', welcome:{channel:null,message:'Welcome {user} to **{server}**!'}, logs:{channel:null,mod:null}, autorole:null, automod:{links:false,invites:false,caps:false,spam:false}, disabled:[], warnings:{}, xp:{}, economy:{}, applications:{channel:null,questions:['Why should we accept you?','What experience do you have?','Why do you want this role?']}, tickets:{category:null}, embedChannel:null };
+if (!BOT_TOKEN) {
+  console.error('Missing BOT_TOKEN environment variable.');
+  process.exit(1);
 }
-const queues = new Map();
-const music = new Map();
 
 const client = new Client({
-  intents:[GatewayIntentBits.Guilds,GatewayIntentBits.GuildMembers,GatewayIntentBits.GuildMessages,GatewayIntentBits.MessageContent,GatewayIntentBits.GuildVoiceStates,GatewayIntentBits.GuildModeration],
-  partials:[Partials.Channel,Partials.Message]
-});
-const ok=(s,e=false)=>({content:`✅ ${s}`,ephemeral:e});
-const err=(s,e=true)=>({content:`❌ ${s}`,ephemeral:e});
-const em=(title,description)=>new EmbedBuilder().setTitle(title).setDescription(description).setColor(0x5865f2).setTimestamp();
-const has=(i,p)=>i.memberPermissions?.has(p);
-const owner=i=>i.guild?.ownerId===i.user.id||i.user.id===process.env.OWNER_ID;
-function member(i,v){if(!v)return i.member;const id=v.replace(/[<@!>]/g,'');return i.guild.members.cache.get(id)||i.guild.members.cache.find(x=>x.user.username.toLowerCase()===v.toLowerCase());}
-function duration(s){const m=/^(\d+)\s*(s|m|h|d|w)$/i.exec(s||'');return m?Number(m[1])*({s:1000,m:60000,h:3600000,d:86400000,w:604800000}[m[2].toLowerCase()]):null;}
-async function log(g,title,description,mod=false){const c=guildData(g.id),id=mod?c.logs.mod:c.logs.channel;if(!id)return;const ch=g.channels.cache.get(id);if(ch?.isTextBased())ch.send({embeds:[em(title,description)]}).catch(()=>{});}
-function account(g,u){const d=guildData(g.id);return d.economy[u] ||= {cash:100,bank:0,lastDaily:0,lastWork:0};}
-function xp(g,u){const d=guildData(g.id);return d.xp[u] ||= {xp:0,level:1};}
-function levelNeed(l){return l*l*100;}
-
-function cmd(name,desc,options=[],permission){let b=new SlashCommandBuilder().setName(name).setDescription(desc);for(const o of options)b.addStringOption(o);if(permission)b.setDefaultMemberPermissions(permission);return b.toJSON();}
-const O={req:n=>o=>o.setName(n).setDescription(n).setRequired(true), opt:n=>o=>o.setName(n).setDescription(n).setRequired(false)};
-const commands=[
-cmd('help','Show all bot features'),cmd('ping','Show latency'),cmd('botinfo','Show bot information'),cmd('serverinfo','Show server information'),cmd('userinfo','Show user information',[O.opt('user')]),cmd('avatar','Show a user avatar',[O.opt('user')]),cmd('roleinfo','Show role information',[O.req('role')]),cmd('channelinfo','Show channel information'),cmd('membercount','Show member count'),cmd('servericon','Show server icon'),cmd('invite','Create a server invite'),
-cmd('say','Send a message',[O.req('message')],PermissionFlagsBits.ManageMessages),cmd('announce','Send an embed announcement',[O.req('message')],PermissionFlagsBits.ManageMessages),cmd('embed','Create an embed',[O.req('title'),O.req('description')],PermissionFlagsBits.ManageMessages),cmd('poll','Create a poll',[O.req('question')]),
-cmd('8ball','Ask 8ball',[O.req('question')]),cmd('coinflip','Flip a coin'),cmd('roll','Roll dice',[O.opt('sides')]),cmd('choose','Choose an option',[O.req('options')]),
-cmd('kick','Kick a member',[O.req('user'),O.opt('reason')],PermissionFlagsBits.KickMembers),cmd('ban','Ban a member',[O.req('user'),O.opt('reason')],PermissionFlagsBits.BanMembers),cmd('unban','Unban a user',[O.req('user')],PermissionFlagsBits.BanMembers),cmd('timeout','Timeout a member',[O.req('user'),O.req('duration'),O.opt('reason')],PermissionFlagsBits.ModerateMembers),cmd('untimeout','Remove timeout',[O.req('user')],PermissionFlagsBits.ModerateMembers),cmd('warn','Warn a member',[O.req('user'),O.opt('reason')],PermissionFlagsBits.ModerateMembers),cmd('warnings','View warnings',[O.req('user')]),cmd('clearwarnings','Clear warnings',[O.req('user')],PermissionFlagsBits.ModerateMembers),cmd('purge','Delete messages',[O.req('amount')],PermissionFlagsBits.ManageMessages),cmd('lock','Lock channel',[],PermissionFlagsBits.ManageChannels),cmd('unlock','Unlock channel',[],PermissionFlagsBits.ManageChannels),cmd('slowmode','Set slowmode',[O.req('seconds')],PermissionFlagsBits.ManageChannels),cmd('nick','Change nickname',[O.req('user'),O.req('nickname')],PermissionFlagsBits.ManageNicknames),cmd('lockdown','Lock all text channels',[],PermissionFlagsBits.Administrator),cmd('unlockdown','Unlock all text channels',[],PermissionFlagsBits.Administrator),
-cmd('setwelcome','Set welcome channel',[O.req('channel')],PermissionFlagsBits.ManageGuild),cmd('setwelcome-message','Set welcome message',[O.req('message')],PermissionFlagsBits.ManageGuild),cmd('setlogs','Set server log channel',[O.req('channel')],PermissionFlagsBits.ManageGuild),cmd('setmodlogs','Set moderation log channel',[O.req('channel')],PermissionFlagsBits.ManageGuild),cmd('setautorole','Set autorole',[O.req('role')],PermissionFlagsBits.ManageRoles),cmd('autorole','Enable or disable autorole',[O.req('enabled')],PermissionFlagsBits.ManageRoles),cmd('automod','Configure automod',[O.req('feature'),O.req('enabled')],PermissionFlagsBits.ManageGuild),cmd('config','Show configuration'),cmd('disable','Disable a command',[O.req('command')],PermissionFlagsBits.ManageGuild),cmd('enable','Enable a command',[O.req('command')],PermissionFlagsBits.ManageGuild),
-cmd('ticket','Open a support ticket'),cmd('ticket-setup','Set ticket category',[O.req('category')],PermissionFlagsBits.ManageChannels),cmd('close','Close current ticket'),
-cmd('level','Show your level',[O.opt('user')]),cmd('leaderboard','Show level leaderboard'),cmd('setxp','Set a user XP',[O.req('user'),O.req('amount')],PermissionFlagsBits.ManageGuild),
-cmd('balance','Show economy balance',[O.opt('user')]),cmd('daily','Claim daily coins'),cmd('work','Work for coins'),cmd('deposit','Deposit coins',[O.req('amount')]),cmd('withdraw','Withdraw coins',[O.req('amount')]),cmd('pay','Pay another user',[O.req('user'),O.req('amount')]),cmd('rob','Attempt to rob another user',[O.req('user')]),cmd('economy','Show economy commands'),
-cmd('apply','Submit an application'),cmd('application-setup','Set application review channel',[O.req('channel')],PermissionFlagsBits.ManageGuild),cmd('application-questions','Set application questions',[O.req('questions')],PermissionFlagsBits.ManageGuild),
-cmd('play','Play a music URL',[O.req('url')]),cmd('skip','Skip current song'),cmd('stop','Stop music'),cmd('queue','Show music queue'),cmd('leave','Leave voice channel'),
-...minecraftStatus.commands
-];
-
-client.once('ready',async()=>{console.log(`Logged in as ${client.user.tag}`);client.user.setActivity('/help • All-in-one');const rest=new REST({version:'10'}).setToken(process.env.DISCORD_TOKEN);try{if(process.env.GUILD_ID)await rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID,process.env.GUILD_ID),{body:commands});else await rest.put(Routes.applicationCommands(process.env.CLIENT_ID),{body:commands});console.log(`Registered ${commands.length} commands.`);minecraftStatus.startMonitor(client)}catch(e){console.error('Command registration failed:',e.message)}});
-
-client.on('guildMemberAdd',async m=>{const c=guildData(m.guild.id);if(c.autorole)m.roles.add(c.autorole).catch(()=>{});if(c.welcome.channel){const ch=m.guild.channels.cache.get(c.welcome.channel);if(ch?.isTextBased())ch.send({embeds:[em('👋 Welcome!',c.welcome.message.replaceAll('{user}',`${m}`).replaceAll('{server}',m.guild.name))]}).catch(()=>{})}await log(m.guild,'Member Joined',`${m.user.tag} joined.`)});
-client.on('guildMemberRemove',m=>log(m.guild,'Member Left',`${m.user.tag} left.`));
-client.on('messageDelete',m=>{if(m.guild&&!m.author?.bot)log(m.guild,'Message Deleted',`A message by ${m.author?.tag||'unknown'} was deleted in ${m.channel}.`)});
-client.on('messageUpdate',(a,b)=>{if(a.guild&&a.content!==b.content&&!a.author?.bot)log(a.guild,'Message Edited',`A message by ${a.author.tag} was edited in ${a.channel}.`)});
-client.on('channelCreate',c=>c.guild&&log(c.guild,'Channel Created',`${c.name} was created.`));
-client.on('channelDelete',c=>c.guild&&log(c.guild,'Channel Deleted',`${c.name} was deleted.`));
-client.on('roleCreate',r=>log(r.guild,'Role Created',`${r.name} was created.`));
-client.on('roleDelete',r=>log(r.guild,'Role Deleted',`${r.name} was deleted.`));
-client.on('guildBanAdd',b=>log(b.guild,'Member Banned',`${b.user.tag} was banned.`,true));
-client.on('guildBanRemove',b=>log(b.guild,'Member Unbanned',`${b.user.tag} was unbanned.`,true));
-
-client.on('messageCreate',async m=>{if(!m.guild||m.author.bot)return;const c=guildData(m.guild.id),t=m.content;
-if(c.automod.invites&&/(discord\.gg|discord\.com\/invite)\//i.test(t)&&!m.member.permissions.has(PermissionFlagsBits.ManageMessages)){await m.delete().catch(()=>{});await log(m.guild,'AutoMod','Discord invite blocked.');return}
-if(c.automod.links&&/https?:\/\//i.test(t)&&!m.member.permissions.has(PermissionFlagsBits.ManageMessages)){await m.delete().catch(()=>{});return}
-if(c.automod.caps&&t.length>15){const letters=t.replace(/[^A-Za-z]/g,'');if(letters.length>10&&letters===letters.toUpperCase()){await m.delete().catch(()=>{});return}}
-if(c.automod.spam){const key=`spam_${m.author.id}`,now=Date.now();c[key]=(c[key]||[]).filter(x=>now-x<7000);c[key].push(now);if(c[key].length>=5){await m.delete().catch(()=>{});c[key]=[];save();return}}
-const a=xp(m.guild.id,m.author.id);a.xp+=Math.floor(Math.random()*11)+10;const old=a.level;if(a.xp>=levelNeed(a.level)){a.level++;a.xp=0;await m.channel.send({embeds:[em('🎉 Level Up!',`${m.author} reached **Level ${a.level}**!`)]}).catch(()=>{});await log(m.guild,'Level Up',`${m.author.tag} reached level ${a.level}.`)}if(a.level!==old)save();else if(Math.random()<0.1)save();
+  intents: [GatewayIntentBits.Guilds]
 });
 
-async function createTicket(i){const c=guildData(i.guild.id),name=`ticket-${i.user.username.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,16)||'user'}`;if(i.guild.channels.cache.find(x=>x.name===name))return i.reply(err('You already have a ticket.'));const ch=await i.guild.channels.create({name,type:ChannelType.GuildText,parent:c.tickets.category||undefined,permissionOverwrites:[{id:i.guild.roles.everyone.id,deny:[PermissionFlagsBits.ViewChannel]},{id:i.user.id,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory]}]});const row=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ticket-close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger));await ch.send({content:`${i.user}`,embeds:[em('🎫 Support Ticket','Please describe your issue. A staff member can assist you.')],components:[row]});return i.reply(ok(`Ticket created: ${ch}`,true))}
-async function musicPlay(i,url){if(!/^https?:\/\//i.test(url))return i.reply(err('Use a direct supported music URL.'));const vc=i.member.voice?.channel;if(!vc)return i.reply(err('Join a voice channel first.'));let q=queues.get(i.guild.id);if(!q){q=[];queues.set(i.guild.id,q)}q.push({url,user:i.user.tag});if(music.has(i.guild.id))return i.reply(ok('Added to the music queue.'));return playNext(i.guild)}
-async function playNext(g){const q=queues.get(g.id)||[];if(!q.length){music.delete(g.id);return}const item=q.shift();const guildPlayer=music.get(g.id)||{};const vc=g.members.me?.voice?.channel||g.channels.cache.find(c=>c.type===ChannelType.GuildVoice&&c.members.has(client.user.id));if(!vc){music.delete(g.id);return}try{const connection=joinVoiceChannel({channelId:vc.id,guildId:g.id,adapterCreator:g.voiceAdapterCreator});const player=createAudioPlayer();const stream=await play.stream(item.url);const resource=createAudioResource(stream.stream,{inputType:stream.type});player.play(resource);connection.subscribe(player);music.set(g.id,{connection,player});player.on(AudioPlayerStatus.Idle,()=>playNext(g));player.on('error',()=>playNext(g));await entersState(connection,VoiceConnectionStatus.Ready,10_000).catch(()=>{});}catch(e){console.error('Music:',e.message);playNext(g)}}
+async function registerCommands() {
+  if (!CLIENT_ID) throw new Error('Missing CLIENT_ID environment variable.');
+  const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
+  await rest.put(
+    Routes.applicationCommands(CLIENT_ID),
+    { body: minecraftStatus.commands }
+  );
+}
 
-client.on('interactionCreate',async i=>{if(i.isButton()){if(i.customId.startsWith('mc-')){try{return await minecraftStatus.handleButton(i)}catch(e){console.error('Minecraft button:',e);if(!i.replied&&!i.deferred)return i.reply({content:'❌ Minecraft status check failed.',ephemeral:true})}}if(i.customId==='ticket-create')return createTicket(i);if(i.customId==='ticket-close'){if(!i.channel.name.startsWith('ticket-'))return i.reply(err('Not a ticket.'));await i.reply('🔒 Closing ticket...');setTimeout(()=>i.channel.delete().catch(()=>{}),1000);return}if(i.customId.startsWith('poll-')){return i.reply(ok(`Vote recorded: ${i.customId==='poll-yes'?'Yes':'No'}`,true))}return}if(!i.isChatInputCommand())return;const c=guildData(i.guild.id),cmd=i.commandName;if(minecraftStatus.commandNames.has(cmd)){try{return await minecraftStatus.handleCommand(i)}catch(e){console.error('Minecraft command:',e);if(!i.replied&&!i.deferred)return i.reply({content:`❌ Minecraft status check failed: ${e.message.slice(0,150)}`,ephemeral:true})}}if(c.disabled.includes(cmd)&&!['enable','disable'].includes(cmd))return i.reply(err('This command is disabled.'));try{switch(cmd){
-case'help':return i.reply({embeds:[em('🤖 All-in-One Bot',`**🛡️ Moderation:** kick, ban, unban, timeout, warn, purge, lock, slowmode, lockdown\n**📜 Logging:** joins, leaves, messages, channels, roles, bans\n**📈 Leveling:** level, leaderboard, setxp\n**💰 Economy:** balance, daily, work, deposit, withdraw, pay, rob\n**🎫 Tickets:** ticket, ticket-setup, close\n**📝 Applications:** apply, application-setup, application-questions\n**🎵 Music:** play, skip, stop, queue, leave\n**⛏️ Minecraft:** mcstatus, mcplayers, mcip, mcmonitor, mcunmonitor, mcmonitors\n**⚙️ Server:** welcome, autorole, automod, config\n**🛠️ Utility:** serverinfo, userinfo, avatar, roleinfo, invite\n**🎉 Fun:** 8ball, coinflip, roll, choose, poll\n**📨 Embeds:** embed, announce, say`)]});
-case'ping':return i.reply(`🏓 Pong! **${client.ws.ping}ms**`);case'botinfo':return i.reply({embeds:[em('🤖 Bot Info',`Servers: **${client.guilds.cache.size}**\nUsers cached: **${client.users.cache.size}**\nCommands: **${commands.length}**`)]});
-case'serverinfo':return i.reply({embeds:[em(`🏠 ${i.guild.name}`,`Owner: <@${i.guild.ownerId}>\nMembers: **${i.guild.memberCount}**\nChannels: **${i.guild.channels.cache.size}**\nRoles: **${i.guild.roles.cache.size}**`)]});case'membercount':return i.reply(`👥 **${i.guild.memberCount}** members`);case'servericon':return i.reply(i.guild.iconURL({size:1024})||'No server icon.');case'invite':return i.reply(await i.channel.createInvite({maxAge:0,maxUses:0}).then(x=>x.url));
-case'userinfo':{const m=member(i,i.options.getString('user'));return i.reply({embeds:[em(`👤 ${m.user.tag}`,`ID: ${m.id}\nBot: ${m.user.bot?'Yes':'No'}\nJoined: <t:${Math.floor(m.joinedTimestamp/1000)}:R>\nRoles: ${m.roles.cache.filter(r=>r.id!==i.guild.id).map(String).join(' ')||'None'}`).setThumbnail(m.user.displayAvatarURL())]})}case'avatar':{const m=member(i,i.options.getString('user'));return i.reply({embeds:[em(`🖼️ ${m.user.tag}`,m.user.displayAvatarURL({size:1024}))]})}case'roleinfo':{const r=i.guild.roles.cache.get(i.options.getString('role'));if(!r)return i.reply(err('Role not found.'));return i.reply({embeds:[em(`🎭 ${r.name}`,`ID: ${r.id}\nMembers: ${r.members.size}\nPosition: ${r.position}`)]})}case'channelinfo':return i.reply({embeds:[em(`📺 ${i.channel.name}`,`ID: ${i.channel.id}\nType: ${i.channel.type}\nPosition: ${i.channel.position}`)]});
-case'say':await i.channel.send(i.options.getString('message'));return i.reply(ok('Sent.',true));case'announce':return i.reply({embeds:[em('📢 Announcement',i.options.getString('message'))]});case'embed':return i.reply({embeds:[em(i.options.getString('title'),i.options.getString('description'))]});case'poll':return i.reply({embeds:[em('📊 Poll',i.options.getString('question'))],components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('poll-yes').setLabel('👍 Yes').setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId('poll-no').setLabel('👎 No').setStyle(ButtonStyle.Danger))]});case'8ball':return i.reply(['🎱 Yes.','🎱 No.','🎱 Maybe.','🎱 Definitely.','🎱 Ask later.'][Math.floor(Math.random()*5)]);case'coinflip':return i.reply(`🪙 **${Math.random()<.5?'Heads':'Tails'}**`);case'roll':{const n=Math.max(2,Math.min(1000,Number(i.options.getString('sides'))||6));return i.reply(`🎲 **${Math.floor(Math.random()*n)+1}** / ${n}`)}case'choose':{const a=i.options.getString('options').split(',').map(x=>x.trim()).filter(Boolean);return i.reply(a.length?`🎯 **${a[Math.floor(Math.random()*a.length)]}**`:'No options.');}
-case'kick':{const m=member(i,i.options.getString('user'));if(!m)return i.reply(err('Member not found.'));await m.kick(i.options.getString('reason')||'No reason');await log(i.guild,'Member Kicked',`${m.user.tag} was kicked by ${i.user.tag}.`,true);return i.reply(ok(`Kicked ${m.user.tag}.`))}case'ban':{const m=member(i,i.options.getString('user'));if(!m)return i.reply(err('Member not found.'));await m.ban({reason:i.options.getString('reason')||'No reason'});await log(i.guild,'Member Banned',`${m.user.tag} was banned by ${i.user.tag}.`,true);return i.reply(ok(`Banned ${m.user.tag}.`))}case'unban':await i.guild.members.unban(i.options.getString('user'));return i.reply(ok('User unbanned.'));case'timeout':{const m=member(i,i.options.getString('user')),ms=duration(i.options.getString('duration'));if(!m||!ms)return i.reply(err('Member or duration invalid.'));await m.timeout(ms,i.options.getString('reason')||'No reason');return i.reply(ok(`Timed out ${m.user.tag}.`))}case'untimeout':{const m=member(i,i.options.getString('user'));if(!m)return i.reply(err('Member not found.'));await m.timeout(null);return i.reply(ok(`Removed timeout from ${m.user.tag}.`))}case'warn':{const m=member(i,i.options.getString('user'));if(!m)return i.reply(err('Member not found.'));c.warnings[m.id]||=[];c.warnings[m.id].push({reason:i.options.getString('reason')||'No reason',by:i.user.id,at:Date.now()});save();await log(i.guild,'Member Warned',`${m.user.tag} warned by ${i.user.tag}.`,true);return i.reply(ok(`Warned ${m.user.tag}.`))}case'warnings':{const m=member(i,i.options.getString('user'));const w=c.warnings[m.id]||[];return i.reply({embeds:[em(`⚠️ Warnings — ${m.user.tag}`,w.length?w.map((x,n)=>`**${n+1}.** ${x.reason}`).join('\n'):'No warnings.')]})}case'clearwarnings':{const m=member(i,i.options.getString('user'));c.warnings[m.id]=[];save();return i.reply(ok('Warnings cleared.'))}case'purge':{const n=Math.max(1,Math.min(100,Number(i.options.getString('amount'))||1));await i.channel.bulkDelete(n,true);return i.reply(ok(`Deleted ${n} messages.`,true))}case'lock':await i.channel.permissionOverwrites.edit(i.guild.roles.everyone,{SendMessages:false});return i.reply(ok('Channel locked.'));case'unlock':await i.channel.permissionOverwrites.edit(i.guild.roles.everyone,{SendMessages:null});return i.reply(ok('Channel unlocked.'));case'slowmode':{const n=Math.max(0,Math.min(21600,Number(i.options.getString('seconds'))||0));await i.channel.setRateLimitPerUser(n);return i.reply(ok(`Slowmode set to ${n}s.`))}case'nick':{const m=member(i,i.options.getString('user'));await m.setNickname(i.options.getString('nickname'));return i.reply(ok('Nickname updated.'))}case'lockdown':for(const ch of i.guild.channels.cache.values())if(ch.isTextBased())await ch.permissionOverwrites.edit(i.guild.roles.everyone,{SendMessages:false}).catch(()=>{});return i.reply(ok('Server lockdown enabled.'));case'unlockdown':for(const ch of i.guild.channels.cache.values())if(ch.isTextBased())await ch.permissionOverwrites.edit(i.guild.roles.everyone,{SendMessages:null}).catch(()=>{});return i.reply(ok('Server lockdown disabled.'));
-case'setwelcome':c.welcome.channel=i.options.getString('channel').replace(/[<#>]/g,'');save();return i.reply(ok('Welcome channel saved.'));case'setwelcome-message':c.welcome.message=i.options.getString('message');save();return i.reply(ok('Welcome message saved.'));case'setlogs':c.logs.channel=i.options.getString('channel').replace(/[<#>]/g,'');save();return i.reply(ok('Server log channel saved.'));case'setmodlogs':c.logs.mod=i.options.getString('channel').replace(/[<#>]/g,'');save();return i.reply(ok('Moderation log channel saved.'));case'setautorole':c.autorole=i.options.getString('role').replace(/[<@&>]/g,'');save();return i.reply(ok('Autorole saved.'));case'autorole':{const v=i.options.getString('enabled').toLowerCase()==='true';if(!c.autorole)return i.reply(err('Set a role first.'));c.autorole=v?c.autorole:null;save();return i.reply(ok(v?'Autorole enabled.':'Autorole disabled.'))}case'automod':{const f=i.options.getString('feature').toLowerCase(),v=i.options.getString('enabled').toLowerCase()==='true';if(!(f in c.automod))return i.reply(err('Feature: links, invites, caps, spam.'));c.automod[f]=v;save();return i.reply(ok(`Automod ${f}: ${v?'on':'off'}.`))}case'config':return i.reply({embeds:[em('⚙️ Server Configuration',`Welcome: ${c.welcome.channel?`<#${c.welcome.channel}>`:'not set'}\nLogs: ${c.logs.channel?`<#${c.logs.channel}>`:'not set'}\nMod logs: ${c.logs.mod?`<#${c.logs.mod}>`:'not set'}\nAutorole: ${c.autorole?`<@&${c.autorole}>`:'off'}\nAutomod: ${Object.entries(c.automod).map(([k,v])=>`${k}:${v?'on':'off'}`).join(' • ')}`)]});case'disable':{const n=i.options.getString('command').toLowerCase();if(!c.disabled.includes(n))c.disabled.push(n);save();return i.reply(ok(`Disabled /${n}.`))}case'enable':{c.disabled=c.disabled.filter(x=>x!==i.options.getString('command').toLowerCase());save();return i.reply(ok('Command enabled.'))}
-case'ticket':return createTicket(i);case'ticket-setup':c.tickets.category=i.options.getString('category').replace(/[<#>]/g,'');save();return i.reply(ok('Ticket category saved.'));case'close':if(!i.channel.name.startsWith('ticket-'))return i.reply(err('This is not a ticket.'));await i.reply('🔒 Closing...');return setTimeout(()=>i.channel.delete().catch(()=>{}),1000);
-case'level':{const m=member(i,i.options.getString('user')),a=xp(i.guild.id,m.id);return i.reply({embeds:[em('📈 Level',`${m} • **Level ${a.level}**\nXP: **${a.xp}/${levelNeed(a.level)}**`)]})}case'leaderboard':{const arr=Object.entries(c.xp).sort((a,b)=>(b[1].level*10000+b[1].xp)-(a[1].level*10000+a[1].xp)).slice(0,10);return i.reply({embeds:[em('🏆 Level Leaderboard',arr.length?arr.map(([id,a],n)=>`**${n+1}.** <@${id}> — Level ${a.level} (${a.xp} XP)`).join('\n'):'No XP yet.')]})}case'setxp':{const id=i.options.getString('user').replace(/[<@!>]/g,'');const a=xp(i.guild.id,id);a.xp=Math.max(0,Number(i.options.getString('amount'))||0);save();return i.reply(ok('XP updated.'))}
-case'balance':{const m=member(i,i.options.getString('user')),a=account(i.guild.id,m.id);return i.reply({embeds:[em('💰 Balance',`${m} has **${a.cash}** cash and **${a.bank}** bank.`)]})}case'daily':{const a=account(i.guild.id,i.user.id),now=Date.now();if(now-a.lastDaily<86400000)return i.reply(err('Daily is on cooldown.'));a.cash+=250;a.lastDaily=now;save();return i.reply(ok('You received **250** coins.'))}case'work':{const a=account(i.guild.id,i.user.id),now=Date.now();if(now-a.lastWork<300000)return i.reply(err('Work is on cooldown.'));const n=Math.floor(Math.random()*151)+50;a.cash+=n;a.lastWork=now;save();return i.reply(ok(`You earned **${n}** coins.`))}case'deposit':{const a=account(i.guild.id,i.user.id),n=Number(i.options.getString('amount'));if(n<=0||a.cash<n)return i.reply(err('Not enough cash.'));a.cash-=n;a.bank+=n;save();return i.reply(ok(`Deposited **${n}** coins.`))}case'withdraw':{const a=account(i.guild.id,i.user.id),n=Number(i.options.getString('amount'));if(n<=0||a.bank<n)return i.reply(err('Not enough bank balance.'));a.bank-=n;a.cash+=n;save();return i.reply(ok(`Withdrew **${n}** coins.`))}case'pay':{const m=member(i,i.options.getString('user')),n=Number(i.options.getString('amount')),a=account(i.guild.id,i.user.id),b=account(i.guild.id,m.id);if(!m||m.id===i.user.id||n<=0||a.cash<n)return i.reply(err('Invalid payment.'));a.cash-=n;b.cash+=n;save();return i.reply(ok(`Paid ${m} **${n}** coins.`))}case'rob':{const m=member(i,i.options.getString('user')),a=account(i.guild.id,i.user.id),b=account(i.guild.id,m.id);if(!m||m.id===i.user.id||b.cash<50)return i.reply(err('Target cannot be robbed.'));if(Math.random()<.5){const n=Math.min(b.cash,Math.floor(Math.random()*101)+25);b.cash-=n;a.cash+=n;save();return i.reply(ok(`You got **${n}** coins.`))}const fine=Math.min(a.cash,50);a.cash-=fine;save();return i.reply(err(`You failed and lost **${fine}** coins.`))}case'economy':return i.reply({embeds:[em('💰 Economy',`/balance • /daily • /work • /deposit • /withdraw • /pay • /rob`)]});
-case'apply':{const ch=c.applications.channel?i.guild.channels.cache.get(c.applications.channel):null;if(!ch)return i.reply(err('Applications are not configured.'));const answers=i.options.data.map(x=>x.value).join('\n');return i.reply(ok('Application submitted.',true)).then(()=>ch.send({embeds:[em('📝 New Application',`Applicant: ${i.user}\n${answers||'Use application questions configured by staff.'}`)]}))}case'application-setup':c.applications.channel=i.options.getString('channel').replace(/[<#>]/g,'');save();return i.reply(ok('Application review channel saved.'));case'application-questions':c.applications.questions=i.options.getString('questions').split('|').map(x=>x.trim()).filter(Boolean).slice(0,5);save();return i.reply(ok('Application questions saved.'));
-case'play':return musicPlay(i,i.options.getString('url'));case'skip':{const m=music.get(i.guild.id);if(!m)return i.reply(err('Nothing is playing.'));m.player.stop();return i.reply(ok('Skipped.'))}case'stop':{const m=music.get(i.guild.id);queues.set(i.guild.id,[]);if(m){m.player.stop();m.connection.destroy()}music.delete(i.guild.id);return i.reply(ok('Music stopped.'))}case'queue':{const q=queues.get(i.guild.id)||[];return i.reply({embeds:[em('🎵 Queue',q.length?q.map((x,n)=>`${n+1}. ${x.url}`).join('\n'):'Queue is empty.')]})}case'leave':{const m=music.get(i.guild.id);if(m){m.connection.destroy();music.delete(i.guild.id)}return i.reply(ok('Left the voice channel.'))}
-default:return i.reply(err('Unknown command.'))
-}}catch(e){console.error(e);if(!i.replied&&!i.deferred)return i.reply(err(`Something went wrong: ${e.message.slice(0,150)}`));}
+client.once('ready', async () => {
+  console.log(`Logged in as ${client.user.tag}`);
+  if (BOT_NAME && BOT_NAME !== client.user.username) {
+    try {
+      await client.user.setUsername(BOT_NAME);
+      console.log(`Bot name set to ${BOT_NAME}`);
+    } catch (error) {
+      console.error('Could not set BOT_NAME:', error.message);
+    }
+  }
+  minecraftStatus.startMonitor(client);
 });
 
-client.login(process.env.DISCORD_TOKEN);
+client.on('interactionCreate', async interaction => {
+  try {
+    if (interaction.isButton()) {
+      const handled = await minecraftStatus.handleButton(interaction);
+      if (handled) return;
+    }
+    if (interaction.isChatInputCommand()) {
+      await minecraftStatus.handleCommand(interaction);
+    }
+  } catch (error) {
+    console.error('Interaction error:', error);
+    const payload = { content: '❌ Something went wrong while processing that command.', ephemeral: true };
+    if (interaction.deferred || interaction.replied) await interaction.followUp(payload).catch(() => {});
+    else await interaction.reply(payload).catch(() => {});
+  }
+});
+
+(async () => {
+  try {
+    await registerCommands();
+    await client.login(BOT_TOKEN);
+  } catch (error) {
+    console.error('Startup error:', error);
+    process.exit(1);
+  }
+})();

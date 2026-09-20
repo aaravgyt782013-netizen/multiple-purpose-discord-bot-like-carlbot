@@ -1,308 +1,37 @@
-# LightCore
+# Minecraft Status Discord Bot
 
-LightCore is an all-in-one Discord server bot built with Python and `discord.py` 2.7.1. It uses hybrid commands, so the same command can be used with the `.` prefix or as a Discord slash command.
+A Discord.js bot for checking and monitoring Minecraft Java servers.
 
-## Final feature set
-
-### Core
-- `.help` / `/help` — one unified categorized command list
-- `.ping` / `/ping`
-- `.about` / `/about`
-- Prefix: `.`
-- Automatic cog loading and slash-command synchronization
-
-### Moderation & AutoMod
-- Ban
-- Kick
-- Timeout/mute
-- Warn + warning history
-- Persistent moderation action logs in SQLite
-- AutoMod blocked-term protection
-- Server message edit/delete logging
-
-### Leveling & XP
-- XP per server/member
-- Configurable XP minimum/maximum
-- Configurable XP cooldown
-- Level-up message templates
-- Level role rewards
-- `.rank` visual image rank cards
-- `.leaderboard`, `.levels`, `.lb`
-- Persistent XP and level rewards
-
-### Tickets
-- Ticket panel with persistent button
-- Configurable ticket category
-- One open ticket per member
-- Ticket close command
-- Persistent ticket records
-- Transcript capture on close
-- Optional transcript log channel
-
-### Self Roles
-- Button-based self-role panels
-- Persistent role-panel records
-- Panels restored after bot restart
-- Permission and role-hierarchy checks
-
-### Economy
-- LightCoins balance
-- Daily rewards
-- Member-to-member payments
-- Wealth leaderboard
-- Shop item storage
-- Persistent balances and shop data
-
-### Music
-- Join / leave voice channels
-- Play audio through `yt-dlp`
-- Stop playback
-- Voice support through `discord.py[voice]`
-- Requires FFmpeg installed on the host
-
-### Embeds & Announcements
-- Custom embed command
-- Announcement embeds
-
-### Server Configuration
-- Central admin panel
-- GUI feature toggles
-- Logging channel settings
-- Welcome/goodbye settings
-- Ticket settings
-- Leveling settings
-- Member statistics settings
-- Application settings
-- Temporary voice settings
-
-### Welcome & Goodbye
-- Configurable welcome channel/message
-- Configurable goodbye channel/message
-- `{user}` and `{server}` placeholders
-
-### Giveaways
-- Persistent claim-based giveaways
-- Stored giveaway state
-- Stored entries and winner
-- Giveaway buttons restored after restart
-
-### Custom Commands
-- Add custom responses
-- Remove custom responses
-- List custom commands
-- Persistent autoresponders
-
-### Fun
-- 8-ball
-- Coin flip
-- Dice
-- Random choice
-- Random number
-- Random meme fetcher with age-restricted posts skipped
-
-### Games
-- Rock-paper-scissors
-- Tic-tac-toe
-- Number guessing
-- Trivia
-- Interactive buttons and game sessions
-
-### Server & Member Information
-- Server information
-- Member/user information
-- Member growth statistics
-- Join/leave retention estimate
-- Message activity statistics
-- Persistent member event records
-
-### Applications
-- Create application forms
-- Up to five questions per form
-- Persistent application panels
-- Modal submissions
-- Persistent staff review buttons
-- Accept/deny status tracking
-- Applicant notification when reviewed
-- Configurable review channel
-
-### Temporary Voice
-- Join-to-create voice channel
-- Automatic temporary VC creation
-- Owner controls: rename, lock, unlock, limit, transfer ownership
-- Persistent owner records
-- Empty temporary channels are cleaned up
-- Active ownership is restored after restart
-
-## Project structure
-
-```text
-LightCore/
-├── main.py
-├── database.py
-├── requirements.txt
-├── .env.example
-├── README.md
-└── cogs/
-    ├── __init__.py
-    ├── core.py
-    ├── moderation.py
-    ├── automod.py
-    ├── logging.py
-    ├── leveling.py
-    ├── tickets.py
-    ├── roles.py
-    ├── currency.py
-    ├── music.py
-    ├── embeds.py
-    ├── panels.py
-    ├── welcome.py
-    ├── giveaways.py
-    ├── custom_commands.py
-    ├── temp_voice.py
-    ├── fun.py
-    ├── games.py
-    ├── serverinfo.py
-    ├── admin.py
-    ├── memberstats.py
-    └── applications.py
-```
-
-## Requirements
-
-- Python **3.10+** recommended
-- `discord.py 2.7.1`
-- FFmpeg for music playback
-- A Discord bot application/token
-- Message Content, Server Members and other required intents enabled in the Discord Developer Portal
-
-`discord.py 2.7.1` is the stable release pinned by this project.
-
-## Setup
-
-### 1. Get the repository
-
-Clone/download the repository and open a terminal in the project folder.
-
-### 2. Install dependencies
-
-```bash
-python -m pip install -r requirements.txt
-```
-
-### 3. Configure environment variables
-
-Create a `.env` file in the project root:
+## Environment variables
 
 ```env
 BOT_TOKEN=your_discord_bot_token
 CLIENT_ID=your_discord_application_client_id
+BOT_NAME=LightCore
+MC_STATUS_INTERVAL_SECONDS=60
 ```
 
-Never paste your real bot token into GitHub, README files, or chat. Never commit `.env`.
+- `BOT_TOKEN`: Discord bot token.
+- `CLIENT_ID`: Discord application/client ID.
+- `BOT_NAME`: bot username to use when the bot starts. Leave empty to keep the current Discord username.
+- `MC_STATUS_INTERVAL_SECONDS`: monitor refresh interval; values below 30 seconds are raised to 30 seconds.
 
-### 4. Configure the Discord bot
+## Commands
 
-In the Discord Developer Portal:
+- `/mcstatus server:host:port`
+- `/mcplayers server:host:port`
+- `/mcip server:host:port`
+- `/mcmonitor server:host:port`
+- `/mcunmonitor server:host:port`
+- `/mcmonitors`
 
-- Enable **Message Content Intent**.
-- Enable **Server Members Intent**.
-- Enable any other privileged intent required by the features you use.
-- Invite the bot with the permissions needed for moderation, channels, roles, messages, voice and applications.
+Monitor management requires Manage Server permission.
 
-### 5. Start LightCore
+The bot reports public DNS/IP information and does not attempt to bypass proxies, firewalls, or private backend protections. Player names are limited to the sample returned by the Minecraft server.
+
+## Start
 
 ```bash
-python main.py
+npm install
+npm start
 ```
-
-On startup LightCore will:
-
-1. Load `.env`.
-2. Validate `BOT_TOKEN` and `CLIENT_ID`.
-3. Initialize `lightcore.db` and all persistent tables.
-4. Load every cog listed in `main.py`.
-5. Register hybrid commands.
-6. Connect to Discord.
-7. Synchronize slash commands.
-
-## Database
-
-LightCore uses SQLite by default in `lightcore.db`. Persistent areas include:
-
-- Server settings
-- Warnings
-- Moderation logs
-- Server event logs
-- XP and level rewards
-- Economy balances and shop items
-- Self-role panels
-- Tickets and transcripts
-- Giveaways and entries
-- Member events
-- Applications, panels and submissions
-- Temporary voice channels
-
-The database layer keeps the cog interface separate from storage so it can be migrated to PostgreSQL later.
-
-## Main commands
-
-Use `.help` or `/help` inside Discord for the complete live list. Major commands include:
-
-```text
-Moderation: ban, kick, mute, warn, warnings, automod
-Levels: rank, leaderboard, levelconfig ...
-Tickets: ticketpanel, setticketcategory, setticketlog, close
-Roles: selfrole
-Economy: balance, daily, pay, rich, shop
-Music: join, play, stop, leave
-Server: serverinfo, userinfo, memberstats, growth, retention
-Fun: 8ball, coinflip, dice, choose, randomnumber, meme
-Games: rps, tictactoe, guess, trivia
-Configuration: panel, adminpanel, setlog, setwelcome, setgoodbye
-Giveaways: giveaway
-Applications: applicationcreate, applicationpanel, applicationreviewchannel, applications
-Custom commands: customadd, customremove, customlist
-Temp Voice: tempvoice_setup
-```
-
-## Hosting checklist
-
-Before deploying to a host:
-
-- Use Python 3.10+.
-- Run `pip install -r requirements.txt`.
-- Add `BOT_TOKEN` and `CLIENT_ID` as environment variables.
-- Make sure the host runs `python main.py` as the long-running process.
-- Install FFmpeg if music is enabled.
-- Keep the SQLite database on persistent storage; otherwise server settings and data can be lost when the instance is recreated.
-- Do not expose or commit the bot token.
-
-## Integration status
-
-The repository has been integration-audited around the cog list in `main.py`. The database schema now covers the persistent feature areas, command naming is intentionally unique across cogs, and `.help`/`/help` is the single categorized help entry point.
-
-A real Discord login/synchronization test still requires a valid runtime with the bot credentials supplied through environment variables; credentials should never be placed in source control or chat.
-
-## License
-
-Private project / all rights reserved unless the repository owner chooses another license.
-
-
-## Minecraft Server Status
-
-LightCore now includes Minecraft Java server monitoring:
-
-- `/mcstatus server:<address>` — status, MOTD, version, protocol, players, latency, public numeric IP and SRV target.
-- `/mcplayers server:<address>` — player sample returned by the server.
-- `/mcip server:<address>` — public DNS/IP and SRV information.
-- `/mcmonitor server:<address>` — creates an automatically updating status embed.
-- `/mcunmonitor server:<address>` — removes a monitor.
-- `/mcmonitors` — lists monitors in the server.
-- Refresh and Players buttons are included on status embeds.
-- Monitor interval is controlled by `MC_STATUS_INTERVAL_SECONDS` (minimum 30 seconds).
-
-The status checker uses Minecraft Server List Ping. The player list is limited to the sample a server chooses to expose; it does not provide a private or hidden player list.
-
-The numeric IP is the publicly resolvable address. If a server uses Velocity/BungeeCord or another proxy, that address can be the public proxy endpoint rather than a private backend. The bot does not attempt to bypass proxy or firewall protections.
-
-The Java status module uses the `minecraft-protocol` package, which supports Minecraft server status ping and SRV-aware networking. 
